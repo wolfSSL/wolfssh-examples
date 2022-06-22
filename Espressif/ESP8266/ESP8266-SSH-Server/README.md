@@ -431,10 +431,10 @@ ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222
 
 <br />
 
-For any technical queries specific to the Espressif chips, you can open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub.
+## Support
 
-For any issues related to wolfSSL, please open an [issue](https://github.com/wolfssl/wolfssl/issues) on GitHub, 
+For any issues related to wolfSSL or wolfSSH, please open an [issue](https://github.com/wolfssl/wolfssl/issues) on GitHub, 
 visit the [wolfSSL support forum](https://www.wolfssl.com/forums/),
-send an email to [support](mailto:support@wolfssl.com),   
+send an email to [support@wolfssl.com](mailto:support@wolfssl.com),   
 or [contact us](https://www.wolfssl.com/contact/).
 
