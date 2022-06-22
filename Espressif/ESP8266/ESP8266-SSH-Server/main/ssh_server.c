@@ -1,4 +1,3 @@
-#include <esp_task_wdt.h>
 /* ssh_server.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
@@ -19,12 +18,11 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <esp_task_wdt.h>
 #include "ssh_server_config.h"
 #include "ssh_server.h"
 #include <wolfssl/wolfcrypt/logging.h>
-
-
-
+#include "int_to_string.h"
 
 typedef struct {
     WOLFSSH* ssh;
@@ -460,10 +458,9 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
     return ret;
 }
 
-#include "int_to_string.h"
 /*
- *
- **/
+ * initalization items for the server worker thread
+ */
 int init_server_worker() {
     int ret = 0;
     char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
