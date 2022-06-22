@@ -325,7 +325,7 @@ I (600) wifi station: wifi_init_softap finished. SSID:TheBucketHill password:jac
 I (603) SSH Server main: End setup WiFi Soft AP.
 ```
 
-When the SSH server is running, but nothing interesting is happening, the main thread will continued to periodically
+When the SSH server is running, but nothing interesting is happening, the main thread will continue to periodically
 show a message:
 
 ```

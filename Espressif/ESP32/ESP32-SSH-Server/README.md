@@ -464,7 +464,7 @@ I (120895) wolfssl: wolfSSH Server main loop heartbeat!
 
 ```
 
-When the SSH server is running, but nothing interesting is happening, the main thread will continued to periodically
+When the SSH server is running, but nothing interesting is happening, the main thread will continue to periodically
 show a message:
 
 ```text
@@ -619,7 +619,7 @@ The wolfssl components should exist in only the ESP-IDF or the local project, bu
 
 #### error: unknown type name 'xSemaphoreHandle'
 
-There's a known problem with ESP-IDF 5.0 and FressRTOS.
+There's a known problem with ESP-IDF 5.0 and FreeRTOS.
 
 ```
 home/[USERNAME]/esp/esp-idf/components/wolfssl/wolfssl/wolfcrypt/wc_port.h:199:17: error: unknown type name 'xSemaphoreHandle'
@@ -637,7 +637,7 @@ git checkout release/v4.4
 cd ~/workspace/wolfssh/examples/ESP32-SSH-Server
 ```
 
-A more redical approach is to completely replace the ESP-IDF 
+A more radical approach is to completely replace the ESP-IDF 
 with [version 4.4.1](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/get-started/index.html#step-2-get-esp-idf).
 ```
 mkdir -p ~/esp4.4.1/

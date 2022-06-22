@@ -10,3 +10,11 @@ esp_eth_enc28j60.h
 esp_eth_mac_enc28j60.c
 esp_eth_phy_enc28j60.c
 ```
+
+
+## Support
+
+For any issues related to wolfSSL or wolfSSH, please open an [issue](https://github.com/wolfssl/wolfssl/issues) on GitHub, 
+visit the [wolfSSL support forum](https://www.wolfssl.com/forums/),
+send an email to [support@wolfssl.com](mailto:support@wolfssl.com),   
+or [contact us](https://www.wolfssl.com/contact/).
