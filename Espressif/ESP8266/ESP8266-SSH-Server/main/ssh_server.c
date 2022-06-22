@@ -147,11 +147,14 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         if (max_wait < 0) {
             error = WS_FATAL_ERROR;
         }
-//        if (error == WS_WANT_READ)
-//            WOLFSSL_ERROR_MSG("... client would read block\n");
-//        else if (error == WS_WANT_WRITE)
-//            WOLFSSL_ERROR_MSG("... client would write block\n");
-
+/*
+* disabled for now:
+*
+        if (error == WS_WANT_READ)
+            WOLFSSL_ERROR_MSG("... client would read block\n");
+        else if (error == WS_WANT_WRITE)
+            WOLFSSL_ERROR_MSG("... client would write block\n");
+*/
         select_ret = tcp_select(sockfd, 1);
         if (select_ret == WS_SELECT_RECV_READY  ||
             select_ret == WS_SELECT_ERROR_READY ||
@@ -164,10 +167,6 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         else
             error = WS_FATAL_ERROR;
 
-        /* RTOS yield */
-        /* TODO WDT problem when value set to 10 ? */
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
-        // esp_task_wdt_reset();
     }
     WOLFSSL_MSG("Exit NonBlockSSH_accept");
 
@@ -177,28 +176,12 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
 #define ByteExternalReceiveBufferSz 2047
 #define ByteExternalTransmitBufferSz 2047
 
-//static SemaphoreHandle_t _xExternalReceiveBufferSz_Semaphore = NULL;
-//static SemaphoreHandle_t _xExternalTransmitBufferSz_Semaphore = NULL;
-
 static SemaphoreHandle_t _xExternalReceiveBuffer_Semaphore = NULL;
 static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
 
 
-//SemaphoreHandle_t ExternalReceive_Semaphore()
-//{
-//    return _xExternalReceiveBufferSz_Semaphore;
-//}
-//SemaphoreHandle_t ExternalTransmit_Semaphore() {
-//    return _xExternalTransmitBufferSz_Semaphore;
-//}
-
 
 void InitReceiveSemaphore() {
-    //        if (_xExternalReceiveBufferSz_Semaphore == NULL) {
-    //        _xExternalReceiveBufferSz_Semaphore = xSemaphoreCreateMutex();
-    //
-    //    }
-
     if (_xExternalReceiveBuffer_Semaphore == NULL) {
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
@@ -209,12 +192,6 @@ void InitReceiveSemaphore() {
 }
 
 void InitTransmitSemaphore() {
-
-//    if (_xExternalTransmitBufferSz_Semaphore == NULL) {
-//        _xExternalTransmitBufferSz_Semaphore = xSemaphoreCreateMutex();
-//
-//    }
-
     if (_xExternalTransmitBuffer_Semaphore == NULL) {
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
@@ -375,7 +352,6 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz)
                        sz);
 
                 _ExternalReceiveBufferSz = sz;
-                //Set_ExternalReceiveBufferSz(sz);
             }
             xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
         }
@@ -497,31 +473,6 @@ int init_server_worker() {
      */
     Set_ExternalReceiveBufferSz(0);
     Set_ExternalTransmitBufferSz(0);
-
-//    /* typically "Welcome to wolfSSL ESP32 SSH UART Server!" */
-//    Set_ExternalTransmitBuffer((byte*)SSH_WELCOME_MESSAGE, sizeof(SSH_WELCOME_MESSAGE));
-//
-//    /* typically "You are now connected to UART " */
-//    Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE, sizeof(SSH_GPIO_MESSAGE));
-//
-//    /* "Tx GPIO " */
-//    Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE_TX, sizeof(SSH_GPIO_MESSAGE_TX));
-//
-//    /* the number of the Tx pin, converted to a string */
-//    int_to_dec(numStr, TXD_PIN);
-//    Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
-//
-//    /* ", Rx GPIO " */
-//    Set_ExternalTransmitBuffer((byte*)SSH_GPIO_MESSAGE_RX, sizeof(SSH_GPIO_MESSAGE_RX));
-//
-//    /* the number of the Rx pin, converted to a string */
-//    int_to_dec(numStr, RXD_PIN);
-//    Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
-//
-//    /* typically "Press [Enter] to start. Ctrl-C to exit" */
-//    Set_ExternalTransmitBuffer((byte*)SSH_READY_MESSAGE, sizeof(SSH_READY_MESSAGE));
-//
-//    return ret;
 
     static char startupMessage[] = "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\rYou are now connected to UART Tx GPIO 15, Rx GPIO 13.\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n";
 
@@ -661,11 +612,6 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         wolfSSH_stream_send(threadCtx->ssh,
                             ssbuf,
                             thisSize);
-//                        wolfSSH_stream_send(threadCtx->ssh,
-//                            (byte*)_ExternalTransmitBuffer,
-//                            _ExternalTransmitBufferSz);
-//                        Set_ExternalTransmitBufferSz(0);
-
                     }
                 }
 
@@ -752,9 +698,6 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                 }
             }
 
-        // taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(10));
-        //    esp_task_wdt_reset();
         } while (!stop);
 
         free(buf);
@@ -783,7 +726,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     }
     wolfSSH_stream_exit(threadCtx->ssh, 0);
 
-    // check if open before closing
+    /* check if open before closing */
     if (threadCtx->fd != SOCKET_INVALID) {
         WOLFSSL_MSG("Close sockfd socket");
         close(threadCtx->fd);
@@ -1307,12 +1250,12 @@ void server_test(void *arg) {
 #ifdef DEBUG_WOLFSSL
     wolfSSL_Debugging_ON();
     WOLFSSL_MSG("Debug ON v0.2b");
-    //ShowCiphers();
+    /* TODO ShowCiphers(); */
 #endif /* DEBUG_WOLFSSL */
 
 #ifdef DEBUG_WOLFSSH
     wolfSSH_Debugging_ON();
-    //ShowCiphers();
+    /* TODO ShowCiphers(); */
 #endif /* DEBUG_WOLFSSL */
 
 
@@ -1416,7 +1359,7 @@ void server_test(void *arg) {
             WOLFSSL_MSG("socket creation successful");
         }
         else {
-            // TODO show errno
+            /* TODO show errno */
             ret = WOLFSSL_FAILURE;
            WOLFSSL_ERROR_MSG("\r\nERROR: failed to create a socket.\n");
         }
@@ -1480,7 +1423,7 @@ void server_test(void *arg) {
             WOLFSSL_MSG("setsockopt re-use addr successful");
         }
         else {
-            // TODO show errno
+            /* TODO show errno */
             ret = WOLFSSL_FAILURE;
             WOLFSSL_ERROR_MSG("\r\nERROR: failed to setsockopt addr on socket.\n");
         }
@@ -1697,10 +1640,11 @@ void server_test(void *arg) {
         }
 
         /*
-         * optionally register some callbacks (these are not working)
+         * optionally register some callbacks (these are not currently working)
+
+           wolfSSH_SetIORecv(ctx, my_IORecv);
+           wolfSSH_SetIOSend(ctx, my_IOSend);
          */
-//        wolfSSH_SetIORecv(ctx, my_IORecv);
-//        wolfSSH_SetIOSend(ctx, my_IOSend);
 
         ssh = wolfSSH_new(ctx);
         if (ssh == NULL) {

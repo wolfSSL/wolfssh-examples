@@ -1,5 +1,4 @@
-#include <esp_task_wdt.h>
-/* uart_hlper.c
+/* uart_helper.c
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -19,6 +18,8 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#include <esp_task_wdt.h>
+
 #include "uart_helper.h"
 #include "tx_rx_buffer.h"
 
