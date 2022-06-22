@@ -246,7 +246,7 @@ ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222
 ```
 
 When using ecc, this sample app uses the key `static const unsigned char ecc_key_der_256[]` found 
-in [components/wolfssh/wolfssh/certs_test.h](./components/wolfssh/wolfssh/certs_test.h)
+in [components/wolfssh/wolfssh/certs_test.h](https://github.com/wolfSSL/wolfssh/blob/master/wolfssh/certs_test.h)
 See `load_key()` in [main/ssh_server.c](./main/ssh_server.c). See also the sample keys in 
 [wolfssl/certs_test.h](https://github.com/wolfSSL/wolfssl/blob/master/wolfssl/certs_test.h) which are
 [generated](https://github.com/wolfSSL/wolfssl/blob/master/scripts/dertoc.pl) from
