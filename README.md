@@ -1,10 +1,10 @@
 # wolfssh-examples
 
-These manufacturer-specific wolfSSH examples depend on the [wolfssl](../wolfssl/README.md) 
-and [wolfssh](../wolfssh/README.md) libraries.
+These manufacturer-specific wolfSSH examples depend on the [wolfssl](https://github.com/wolfSSL/wolfssl) 
+and [wolfssh](https://github.com/wolfSSL/wolfssh) libraries.
 
-For the standard Getting Started examples, see the [wolfssl examples](../wolfssl/tree/master/examples) 
-and [wolfssh examples](../wolfssh/tree/master/examples).
+For the standard Getting Started examples, see the [wolfssl examples](https://github.com/wolfSSL/wolfssl/tree/master/examples) 
+and [wolfssh examples](https://github.com/wolfSSL/wolfssh/tree/master/examples).
 <br />
 
 ### Espressif
