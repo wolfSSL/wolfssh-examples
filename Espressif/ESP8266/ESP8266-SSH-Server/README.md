@@ -4,7 +4,7 @@ Connect to Tx/Rx pins on ESP8266 UART via remote SSH.
 
 ![Adafruit_Huzzah_ESP8266_SSH_Server.png](./images/Adafruit_Huzzah_ESP8266_SSH_Server.png)
 
-There's an [ESP-IDF wolfSSH component install](../../ide/Espressif/ESP-IDF/setup_win.bat) for Windows, 
+There's an [ESP-IDF wolfSSH component install](../../../../wolfssh/ide/Espressif/ESP-IDF/setup_win.bat) for Windows, 
 but to get started quickly there's a stale copy of the the components included.
 
 See also the related [ESP-IDF wolfSSL component install](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif/ESP-IDF) for both Windows and bash scripts.
@@ -49,8 +49,8 @@ If no `my_private_config.h` file is found, default values are used. See [my_conf
 
 ## Building
 
-The [project](https://github.com/gojimmypi/wolfssh/blob/ESP8266_Development/examples/ESP8266-SSH-Server/ESP8266-SSH-Server.vgdbproj) was developed in Visual Studio with the VisualGDB extension.
-Just open the solution file in the [examples/ESP8266-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server) directory. 
+The [project](ESP8266-SSH-Server.vgdbproj) was developed in Visual Studio with the VisualGDB extension.
+Just open the solution file in the [examples/ESP8266-SSH-Server](./README.md) directory. 
 Right-click the project and "Build...":
 
 ![ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png](./images/ssh_uart_ESP8266_HUZZAH_VisualGDB_build.png)
@@ -161,7 +161,7 @@ ssh jill@192.168.75.39 -p 22222
 ```
 
 The SSH Server is current configured for RSA Algorithm. If you've turned that off in favor
-or more modern and secure algoritems, you'll need to use something like this until the code
+or more modern and secure algorithms, you'll need to use something like this until the code
 is updated:
 
 ```
@@ -203,10 +203,8 @@ WSL Quick Start, use the [ESPPORT](https://github.com/espressif/esp-idf/issues/1
 if [ "$WORKSPACE"    == "" ]; then read -p "WORKSPACE not set?"; fi
 cd $WORKSPACE
 
-git clone https://github.com/gojimmypi/wolfssh.git
-cd ./wolfssh
-git checkout ESP8266_Development
-cd ./examples/ESP8266-SSH-Server
+git clone https://github.com/wolfssl/wolfssh-examples.git
+cd ./wolfssh-examples/Espressif/ESP8266-SSH-Server
 
 # Reminder that WSL USB devices are called /dev/ttySn and not /dev/TTYUSBn
 # For example, on Windows, COM15 is ttyS15 in WSL.
@@ -370,7 +368,7 @@ Only one connection is allowed at the time. There may be a delay when an existin
 
 When only in AP mode, the timeserver settings will not work as there will be no internet connectivity. 
 Note that certificates are only valid during a preiod of time.
-See the [int set_time()](https://github.com/gojimmypi/wolfssh/blob/893d3787b40b1194fbc7df48c70e01d921cfe01d/examples/ESP8266-SSH-Server/main/main.c#L118)
+See the [int set_time()](./main/main.c#L118)
 to hard code a time value.
 
 Different `sdkconfig` files make be used. See above [building](./README.md#Building) notes.
@@ -387,7 +385,7 @@ typically means "_RNG required but not provided_", the reality is the time is pr
 wolfssl: wolfSSL Leaving wc_ecc_shared_secret_gen_sync, return -236
 wolfssl: wolfSSL Leaving wc_ecc_shared_secret_ex, return -236
 ```
-If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/sdkconfig) 
+If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](sdkconfig) 
 file for unexpected changes, such as when using the EDP-IDF menuconfig. When in doubt, revert back to repo version.
 
 

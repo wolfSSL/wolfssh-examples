@@ -2,7 +2,7 @@
 
 Connect to Tx/Rx pins on [Espressif ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/index.html)
 UART via remote SSH. 
-There's also an [ESP8266 Version](https://github.com/gojimmypi/wolfssh/tree/ESP8266_Development/examples/ESP8266-SSH-Server#readme).
+There's also an [ESP8266 Version](../../ESP8266/ESP8266-SSH-Server/README.md).
  
 This particular example utilizes the sample application for the [Espressif Wired ENC28J60 Ethernet](https://github.com/espressif/esp-idf/tree/master/examples/ethernet/enc28j60) 
 as well as the [Getting Started - Wi-Fi Station Example](https://github.com/espressif/esp-idf/tree/master/examples/wifi/getting_started/station)
@@ -46,7 +46,7 @@ cd ~/workspace
 git clone --recursive https://github.com/wolfssl/wolfssl.git --depth 1
 git clone --recursive https://github.com/wolfssl/wolfssh.git --depth 1
 
-git clone -b ESP32_Development https://github.com/gojimmypi/wolfssh.git wolfssh-gojimmypi --depth 1
+git clone  https://github.com/wolfssl/wolfssh-examples.git --depth 1
 
 cd ~/workspace/wolfssl/IDE/Espressif/ESP-IDF
 ./setup.sh
@@ -54,9 +54,11 @@ cd ~/workspace/wolfssl/IDE/Espressif/ESP-IDF
 cd ~/workspace/wolfssh/ide/Espressif/ESP-IDF
 ./setup.sh
 
-cd ~/workspace/wolfssh-gojimmypi/examples/ESP32-SSH-Server
+cd ~/workspace/wolfssh-examples/Espressif/ESP32-SSH-Server
 idf.py build
 
+# Reminder that WSL USB devices are called /dev/ttySn and not /dev/TTYUSBn
+# For example, on Windows, COM15 is ttyS15 in WSL.
 idf.py -p /dev/ttyUSB0 flash
 
 ```
@@ -112,9 +114,9 @@ If no `my_private_config.h` file is found, default values are used. See [my_conf
 
 ## Building
 
-The [project](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/ESP32-SSH-Server.vgdbproj) 
+The [project](ESP32-SSH-Server.vgdbproj) 
 was developed in Visual Studio with the [Sysprogs VisualGDB](https://visualgdb.com/) extension.
-Just open the solution file in the [examples/ESP32-SSH-Server](https://github.com/gojimmypi/wolfssh/tree/ESP32_Development/examples/ESP32-SSH-Server) directory. 
+Just open the solution file in the [wolfssl-examples/ESP32-SSH-Server](./README.md) directory. 
 Right-click the project and "Build...":
 
 ![ssh_uart_ESP32_VisualGDB_build.png](./images/ssh_uart_ESP32_VisualGDB_build.png)
@@ -237,13 +239,13 @@ ssh jill@192.168.75.39 -p 22222
 ```
 
 If the SSH Server is configured for RSA Algorithm but you've turned that off in favor
-or more modern and secure algoritems, you'll need to use something like this to connect:
+or more modern and secure algorithms, you'll need to use something like this to connect:
 
 ```bash
 ssh -o"PubkeyAcceptedAlgorithms +ssh-rsa" -o"HostkeyAlgorithms +ssh-rsa" -p22222 jill@192.168.4.2
 ```
 
-When using ecc, this sanmple app uses the key `static const unsigned char ecc_key_der_256[]` found 
+When using ecc, this sample app uses the key `static const unsigned char ecc_key_der_256[]` found 
 in [components/wolfssh/wolfssh/certs_test.h](./components/wolfssh/wolfssh/certs_test.h)
 See `load_key()` in [main/ssh_server.c](./main/ssh_server.c). See also the sample keys in 
 [wolfssl/certs_test.h](https://github.com/wolfSSL/wolfssl/blob/master/wolfssl/certs_test.h) which are
@@ -280,10 +282,8 @@ WSL Quick Start
 if [ "$WORKSPACE"    == "" ]; then read -p "WORKSPACE not set?"; fi
 cd $WORKSPACE
 
-git clone https://github.com/gojimmypi/wolfssh.git
-cd ./wolfssh
-git checkout ESP32_Development
-cd ./examples/ESP32-SSH-Server
+git clone https://github.com/wolfssl/wolfssh-examples.git
+cd ./wolfssh-examples/Espressif/ESP32-SSH-Server
 
 # Reminder that WSL USB devices are called /dev/ttySn and not /dev/TTYUSBn
 # For example, on Windows, COM15 is ttyS15 in WSL.
@@ -608,9 +608,9 @@ The error `FreeRTOS-Kernel/include/freertos is not a directory` typically means 
 as well as a local project wolfssl and/or woldssh directory.
 
 ```
-Make Error at /home/gojimmypi/esp/esp-idf/tools/cmake/component.cmake:306 (message):
+Make Error at /home/[USERNAME]/esp/esp-idf/tools/cmake/component.cmake:306 (message):
   Include directory
-  '/home/gojimmypi/workspace/wolfssh/examples/ESP32-SSH-Server/components/freertos/FreeRTOS-Kernel/include/freertos'
+  '/home/[USERNAME]/workspace/wolfssh/examples/ESP32-SSH-Server/components/freertos/FreeRTOS-Kernel/include/freertos'
   is not a directory.
 
 ```
@@ -622,7 +622,7 @@ The wolfssl components should exist in only the ESP-IDF or the local project, bu
 There's a known problem with ESP-IDF 5.0 and FressRTOS.
 
 ```
-home/gojimmypi/esp/esp-idf/components/wolfssl/wolfssl/wolfcrypt/wc_port.h:199:17: error: unknown type name 'xSemaphoreHandle'
+home/[USERNAME]/esp/esp-idf/components/wolfssl/wolfssl/wolfcrypt/wc_port.h:199:17: error: unknown type name 'xSemaphoreHandle'
          typedef xSemaphoreHandle wolfSSL_Mutex;
 ```
 Start a new terminal session, otherwise you'll likely see `ERROR: This script was called from a virtual environment, can not create a virtual environment again`
@@ -665,7 +665,7 @@ typically means "_RNG required but not provided_", the reality is the time is pr
 wolfssl: wolfSSL Leaving wc_ecc_shared_secret_gen_sync, return -236
 wolfssl: wolfSSL Leaving wc_ecc_shared_secret_ex, return -236
 ```
-If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](https://github.com/gojimmypi/wolfssh/blob/ESP32_Development/examples/ESP32-SSH-Server/sdkconfig) 
+If the time is set to a reasonable value, and the `-236` error is still occuring, check the [sdkconfig](sdkconfig) 
 file for unexpected changes, such as when using the EDP-IDF menuconfig. When in doubt, revert back to repo version.
 
 #### E (545) uart: uart_set_pin(605): tx_io_num error
