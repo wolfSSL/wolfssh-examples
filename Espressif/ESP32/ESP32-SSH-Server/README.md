@@ -18,7 +18,7 @@ See also the related [ESP-IDF wolfSSL component install](https://github.com/wolf
 as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/blob/master/wolfcrypt/src/port/Espressif/README.md).
 
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
-<br />
+
 
 ## Linux Quick Start
 
@@ -54,7 +54,7 @@ cd ~/workspace/wolfssl/IDE/Espressif/ESP-IDF
 cd ~/workspace/wolfssh/ide/Espressif/ESP-IDF
 ./setup.sh
 
-cd ~/workspace/wolfssh-examples/Espressif/ESP32-SSH-Server
+cd ~/workspace/wolfssh-examples/Espressif/ESP32/ESP32-SSH-Server
 idf.py build
 
 # Reminder that WSL USB devices are called /dev/ttySn and not /dev/TTYUSBn
@@ -89,7 +89,8 @@ Serial port console monitoring port is typically 74800 baud, 8N1.
 
 For more details on the UARTs and the ESP32 in general, refer to the 
 [ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
-<br />
+
+
 
 ## Private Config
 
@@ -109,8 +110,9 @@ As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these fi
 # Linux
 ~/my_private_config.h
 ```
+
 If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
-<br />
+
 
 ## Building
 
@@ -128,7 +130,7 @@ but the ESP-IDF commandline will use `sdkconfig`.
 
 Note for wired ethernet, the ENC28J60 component make not be available in some versions of the ESP-IDF. See below: [Wired Ethernet Notes](#wired-ethernet-enc28j60-notes).
 
-<br />
+
 
 ## ESP32 Toolchain
 
@@ -168,7 +170,7 @@ Linux
 export IDF_PATH=~/esp-idf
 export WORKSPACE=~/workspace
 ```
-<br />
+
 
 ## Configuration
 
@@ -200,15 +202,16 @@ and the [M5Stack Stick-C](https://shop.m5stack.com/products/stick-c)
 
 #### RSA
 
-RSA is disabled for this project. RSA is enabled unless otherwise specified.
+RSA is enabled unless otherwise specified. RSA is disabled for this project.
 
-To enable RSA, remove both definitions `WOLFSSH_NO_RSA` and `NO_RSA` at compile time. See the [main/CMakeLists.txt](./main/CMakeLists.txt):
+To enable RSA, remove both definitions `WOLFSSH_NO_RSA` and `NO_RSA` at compile time. 
+See the [CMakeLists.txt](./CMakeLists.txt) and [main/CMakeLists.txt](./main/CMakeLists.txt):
 
 ```
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA")
 ```
 
-<br />
+
 
 ## Defaults
 
@@ -228,7 +231,7 @@ to define `WOLFSSH_SERVER_IS_AP` or `WOLFSSH_SERVER_IS_STA`.
 The default SSH port for this demo is `22222` and is defined in [main/ssh_server_config.h](./main/ssh_server_config.h).
 
 
-<br />
+
 
 ## Connecting
 
@@ -262,7 +265,7 @@ cd anybaud
 gcc gistfile.c -o anybaud
 anybaud /dev/ttyUSB0 74880
 ```
-<br />
+
 
 ## Quick Start
 
@@ -290,7 +293,7 @@ cd ./wolfssh-examples/Espressif/ESP32-SSH-Server
 idf.py -p /dev/ttyS15 -baud 460800 flash
 
 ```
-<br />
+
 
 ## Wired Ethernet ENC28J60 Notes
 
@@ -309,7 +312,7 @@ Note some early versions may not properly get an IP address, so it is best to us
 
 Unlike the ESP8266 that needs to have a [shell game of UARTs](https://gojimmypi.github.io/SSH-to-ESP8266/), 
 the ESP32 is much more graceful. The console port at boot time should look like this:
-<br />
+
 
 ```text
 ets Jun  8 2016 00:22:57
@@ -471,9 +474,9 @@ show a message:
 I (2621868) wolfssl: wolfSSH Server main loop heartbeat!
 ```
 
-<br />
 
-<br />
+
+
 
 # ENC28J60 Example
 (See the README.md file in the upper level 'examples' [directory](https://github.com/espressif/esp-idf/tree/master/examples) for more information about examples.)
@@ -573,7 +576,7 @@ Now you can ping your ESP32 in the terminal by entering `ping 192.168.2.34` (it 
 4. CS Hold Time needs to be configured to be at least 210 ns to properly read MAC and MII registers as defined by ENC28J60 Data Sheet. This is automatically configured in the example based on selected SPI clock frequency by computing amount of SPI bit-cycles the CS should stay active after the transmission. However, if your PCB design/wiring requires different value, please update `cs_ena_posttrans` member of `devcfg` structure per your actual needs.
 
 
-<br />
+
 
 ## Known Issues
 
@@ -584,7 +587,7 @@ When plugged into a PC that goes to sleep and powers down the USB power, the ESP
 Only one connection is allowed at the time. There may be a delay when an existing connected is unexpecteedly terminated before a new connection can be made.
 
 
-<br />
+
 
 ## Troubleshooting
 
@@ -704,7 +707,7 @@ If after exhausting all other options, try erasing the ESP32 before reprogrammin
 idf.py -p /dev/ttyS20 erase_flash -b 115200
 ```
 
-<br />
+
 
 
 ## Support

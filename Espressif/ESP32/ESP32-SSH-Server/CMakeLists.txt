@@ -22,20 +22,21 @@
 cmake_minimum_required(VERSION 3.5)
 
 #standard build
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
 
 # less debugging
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_SHELL -DDEBUG_WOLFSSL")
 
 # full debugging; NO_RSA needed to RNG. See https://github.com/wolfSSL/wolfssh/pull/417
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL -DDEBUG_WOLFSSL -DDEBUG_WOLFSSH")
 
 # hardware encryption
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS -DWOLFSSH_NO_RSA -DNO_RSA -DWOLFSSH_SHELL  -DDEBUG_WOLFSSL -DWOLFSSL_ESP32WROOM32_CRYPT -DWOLFSSL_ESP32WROOM32_CRYPT_RSA_PRI -DWOLFSSL_ESP32WROOM32_CRYPT_DEBUG -DNO_WOLFSSL_ESP32WROOM32_CRYPT_HASH")
 
 # we'll look for a my_private_config.h in various environments
 # we also assume that the file is added to the local .gitignore
-# to ensure it is never inadvertantly shared
+# to ensure it is never inadvertently shared
 
 if(EXISTS "/c/workspace/my_private_config.h")
    message(STATUS "found SYSPROGS_MY_PRIVATE_CONFIG")
