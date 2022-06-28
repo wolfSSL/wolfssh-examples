@@ -46,7 +46,7 @@
 /* we are going to use a real backspace instead of 0x7f observed */
 const char* backspace = (char*)0x08;
 static SemaphoreHandle_t xUART_Semaphore = NULL;
-
+static char* TAG = "uart_helper";
 
 /*
  * startupMessage is the message before actually connecting to UART in server task thread.
@@ -95,7 +95,7 @@ void uart_tx_task(void *arg) {
     while (1) {
         if (ExternalReceiveBufferSz() > 0)
         {
-            WOLFSSL_MSG("UART Send Data");
+            ESP_LOGI(TAG,"UART Send Data");
 
             /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
@@ -136,7 +136,7 @@ void InitSemaphore()
 
 #ifdef configUSE_RECURSIVE_MUTEXES
     /* this may be interesting; see semphr.h */
-    WOLFSSL_MSG("InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+    ESP_LOGI(TAG,"InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 }
 
@@ -170,7 +170,7 @@ void uart_rx_task(void *arg) {
                                             UART_TICKS_TO_WAIT);
 
         if (rxBytes > 0) {
-            WOLFSSL_MSG("UART Rx Data!");
+            ESP_LOGI(TAG,"UART Rx Data!");
             data[rxBytes] = 0;
 
             ESP_LOGI(RX_TASK_TAG, "Read %d bytes:", rxBytes);

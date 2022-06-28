@@ -21,16 +21,16 @@
 #include "ssh_server.h"
 #include "tx_rx_buffer.h"
 
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
 
 #include <esp_task_wdt.h>
 #include <wolfssl/wolfcrypt/logging.h>
 
 
-/* note our actual buffer is used by RTOS threads, and eventually interrrupts */
+/* note our actual buffer is used by RTOS threads, and eventually interrupts */
 volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
 volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
+
+char * TAG = "ssh_server";
 
 enum {
     WS_SELECT_FAIL,
@@ -69,7 +69,7 @@ static byte find_char(const byte* str, const byte* buf, word32 bufSz) {
 
 
 static int dump_stats(thread_ctx_t* ctx) {
-    WOLFSSL_ERROR_MSG("dumpstats");
+    ESP_LOGE(TAG,"dumpstats");
     char stats[1024];
     word32 statsSz;
     word32 txCount, rxCount, seq, peerSeq;
@@ -145,7 +145,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
     int error;
     int sockfd;
     int select_ret = 0;
-    WOLFSSL_MSG("Start NonBlockSSH_accept");
+    ESP_LOGI(TAG,"Start NonBlockSSH_accept");
 
     ret = wolfSSH_accept(ssh);
     error = wolfSSH_get_error(ssh);
@@ -161,9 +161,9 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         }
 /*
         if (error == WS_WANT_READ)
-            WOLFSSL_ERROR_MSG("... client would read block\n");
+            ESP_LOGE(TAG,"... client would read block\n");
         else if (error == WS_WANT_WRITE)
-            WOLFSSL_ERROR_MSG("... client would write block\n");
+            ESP_LOGE(TAG,"... client would write block\n");
 */
 
         select_ret = tcp_select(sockfd, 1);
@@ -182,7 +182,7 @@ static int NonBlockSSH_accept(WOLFSSH* ssh) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
         esp_task_wdt_reset();
     }
-    WOLFSSL_MSG("Exit NonBlockSSH_accept");
+    ESP_LOGI(TAG,"Exit NonBlockSSH_accept");
 
     return ret;
 }
@@ -260,11 +260,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                     if (retval != 0) {
                         /* if we can't even call getsockopt, give up */
                         stop = 1;
-                        WOLFSSL_ERROR_MSG("ERROR: getsockopt unable to query socket fd!");
+                        ESP_LOGE(TAG,"ERROR: getsockopt unable to query socket fd!");
                     }
                     if (error != 0) {
                         /* socket has a non zero error status */
-                        WOLFSSL_ERROR_MSG("ERROR: getsockopt returned error socket fd!");
+                        ESP_LOGE(TAG,"ERROR: getsockopt returned error socket fd!");
                         stop = 1;
                     }
 
@@ -285,7 +285,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                         {
                             /*  any other negative value is an error */
                             has_err = 1;
-                            WOLFSSL_ERROR_MSG("wolfSSH_stream_read error!");
+                            ESP_LOGE(TAG,"wolfSSH_stream_read error!");
                         }
                     }
 
@@ -301,7 +301,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
                  * we'll send that to the SSH client
                  */
                 if (ExternalTransmitBufferSz() > 0) {
-                    WOLFSSL_MSG("Tx UART!");
+                    ESP_LOGI(TAG,"Tx UART!");
 
                     /* our actual transit buffer array is not on the local stack
                      * to minimze RTOS requirements; we'll setup a pointer to it.
@@ -433,9 +433,9 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
     } /* if (ret == WS_SUCCESS) */
 
     else if (ret == WS_SCP_COMPLETE) {
-        WOLFSSL_ERROR_MSG("scp file transfer completed\n");
+        ESP_LOGE(TAG,"scp file transfer completed\n");
 #if defined(WOLFSSH_SCP) && defined(NO_FILESYSTEM)
-        WOLFSSL_ERROR_MSG("scp");
+        ESP_LOGE(TAG,"scp");
         if (scpBufferRecv.fileSz > 0) {
             word32 z;
 
@@ -452,14 +452,14 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs) {
 #endif
     } /* else if (ret == WS_SCP_COMPLETE) */
     else if (ret == WS_SFTP_COMPLETE) {
-        WOLFSSL_ERROR_MSG("Use example/echoserver/echoserver for SFTP\n");
+        ESP_LOGE(TAG,"Use example/echoserver/echoserver for SFTP\n");
     }
 
     wolfSSH_stream_exit(threadCtx->ssh, 0);
 
     // check if open before closing
     if (threadCtx->fd != SOCKET_INVALID) {
-        WOLFSSL_MSG("Close sockfd socket");
+        ESP_LOGI(TAG,"Close sockfd socket");
         close(threadCtx->fd);
     }
 
@@ -758,7 +758,7 @@ static int wsUserAuth(byte authType,
     byte authHash[WC_SHA256_DIGEST_SIZE];
 
     if (ctx == NULL) {
-        WOLFSSL_ERROR_MSG("wsUserAuth: ctx not set");
+        ESP_LOGE(TAG,"wsUserAuth: ctx not set");
         return WOLFSSH_USERAUTH_FAILURE;
     }
 
@@ -958,10 +958,10 @@ static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
     #else
         int flags = fcntl(*sockfd, F_GETFL, 0);
         if (flags < 0)
-        WOLFSSL_ERROR_MSG("fcntl get failed");
+        ESP_LOGE(TAG,"fcntl get failed");
             flags = fcntl(*sockfd, F_SETFL, flags | O_NONBLOCK);
         if (flags < 0)
-            WOLFSSL_ERROR_MSG("fcntl set failed");
+            ESP_LOGE(TAG,"fcntl set failed");
     #endif
 }
 
@@ -983,7 +983,7 @@ void server_test(void *arg) {
 
 #ifdef DEBUG_WOLFSSL
     wolfSSL_Debugging_ON();
-    WOLFSSL_MSG("Debug ON v0.2c");
+    ESP_LOGI(TAG,"Debug ON v0.2c");
     //ShowCiphers();
 #endif /* DEBUG_WOLFSSL */
 
@@ -995,7 +995,7 @@ void server_test(void *arg) {
 
 #ifndef WOLFSSL_TLS13
     ret = WOLFSSL_FAILURE;
-   WOLFSSL_ERROR_MSG("\r\nERROR: Example requires TLS v1.3.\n");
+   ESP_LOGE(TAG,"\r\nERROR: Example requires TLS v1.3.\n");
 #endif /* WOLFSSL_TLS13 */
 
     /* Initialize the server address struct with zeros */
@@ -1090,16 +1090,16 @@ void server_test(void *arg) {
         */
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd > 0) {
-            WOLFSSL_MSG("socket creation successful");
+            ESP_LOGI(TAG,"socket creation successful");
         }
         else {
             // TODO show errno
             ret = WOLFSSL_FAILURE;
-           WOLFSSL_ERROR_MSG("\r\nERROR: failed to create a socket.\n");
+           ESP_LOGE(TAG,"\r\nERROR: failed to create a socket.\n");
         }
     }
     else {
-        WOLFSSL_ERROR_MSG("Skipping socket create.\n");
+        ESP_LOGE(TAG,"Skipping socket create.\n");
     }
 
 
@@ -1154,16 +1154,16 @@ void server_test(void *arg) {
             (socklen_t)sizeof(on));
 
         if (soc_ret == 0) {
-            WOLFSSL_MSG("setsockopt re-use addr successful");
+            ESP_LOGI(TAG,"setsockopt re-use addr successful");
         }
         else {
             // TODO show errno
             ret = WOLFSSL_FAILURE;
-            WOLFSSL_ERROR_MSG("\r\nERROR: failed to setsockopt addr on socket.\n");
+            ESP_LOGE(TAG,"\r\nERROR: failed to setsockopt addr on socket.\n");
         }
     }
     else {
-        WOLFSSL_ERROR_MSG("Skipping setsockopt addr\n");
+        ESP_LOGE(TAG,"Skipping setsockopt addr\n");
     }
 
 #ifdef SO_REUSEPORT
@@ -1176,20 +1176,20 @@ void server_test(void *arg) {
             (socklen_t)sizeof(on));
 
         if (soc_ret == 0) {
-            WOLFSSL_MSG("setsockopt re-use port successful\n");
+            ESP_LOGI(TAG,"setsockopt re-use port successful\n");
         }
         else {
             // TODO show errno
             // ret = WOLFSSL_FAILURE;
             // TODO what's up with the error?
-            WOLFSSL_ERROR_MSG("\r\nERROR: failed to setsockopt port on socket.  >> IGNORED << \n");
+            ESP_LOGE(TAG,"\r\nERROR: failed to setsockopt port on socket.  >> IGNORED << \n");
         }
     }
     else {
-        WOLFSSL_ERROR_MSG("Skipping setsockopt port\n");
+        ESP_LOGE(TAG,"Skipping setsockopt port\n");
     }
 #else
-    WOLFSSL_MSG("SO_REUSEPORT not configured for setsockopt to re-use port\n");
+    ESP_LOGI(TAG,"SO_REUSEPORT not configured for setsockopt to re-use port\n");
 #endif
 
     /*
@@ -1237,11 +1237,11 @@ void server_test(void *arg) {
                           );
 
         if (soc_ret > -1) {
-            WOLFSSL_MSG("socket bind successful.");
+            ESP_LOGI(TAG,"socket bind successful.");
         }
         else {
             ret = WOLFSSL_FAILURE;
-            WOLFSSL_ERROR_MSG("\r\nERROR: failed to bind to socket.\n");
+            ESP_LOGE(TAG,"\r\nERROR: failed to bind to socket.\n");
         }
     }
 
@@ -1284,11 +1284,11 @@ void server_test(void *arg) {
     if (ret == WOLFSSL_SUCCESS) {
         int soc_ret = listen(sockfd, 5);
         if (soc_ret > -1) {
-            WOLFSSL_MSG("socket listen successful\n");
+            ESP_LOGI(TAG,"socket listen successful\n");
         }
         else {
            ret = WOLFSSL_FAILURE;
-           WOLFSSL_ERROR_MSG("\r\nERROR: failed to listen to socket.\n");
+           ESP_LOGE(TAG,"\r\nERROR: failed to listen to socket.\n");
         }
     }
 
@@ -1302,17 +1302,17 @@ void server_test(void *arg) {
 #ifdef NO_RSA
     /* If wolfCrypt isn't built with RSA, force ECC on. */
     useEcc = 1;
-    WOLFSSL_MSG("Found NO_RSA, setting useEcc = 1");
+    ESP_LOGI(TAG,"Found NO_RSA, setting useEcc = 1");
 #endif
 
     if (wolfSSH_Init() != WS_SUCCESS) {
-        WOLFSSL_ERROR_MSG("Couldn't initialize wolfSSH.\n");
+        ESP_LOGE(TAG,"Couldn't initialize wolfSSH.\n");
         exit(EXIT_FAILURE);
     }
 
     ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_SERVER, NULL);
     if (ctx == NULL) {
-        WOLFSSL_ERROR_MSG("Couldn't allocate SSH CTX data.\n");
+        ESP_LOGE(TAG,"Couldn't allocate SSH CTX data.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -1332,14 +1332,14 @@ void server_test(void *arg) {
 
         bufSz = load_key(useEcc, buf, SCRATCH_BUFFER_SZ);
         if (bufSz == 0) {
-            WOLFSSL_ERROR_MSG( "Couldn't load key.\n");
+            ESP_LOGE(TAG, "Couldn't load key.\n");
             exit(EXIT_FAILURE);
         }
         if (wolfSSH_CTX_UsePrivateKey_buffer(ctx,
                                              buf,
                                              bufSz,
                                              WOLFSSH_FORMAT_ASN1) < 0) {
-            WOLFSSL_ERROR_MSG("Couldn't use key buffer.\n");
+            ESP_LOGE(TAG,"Couldn't use key buffer.\n");
             exit(EXIT_FAILURE);
         }
 
@@ -1364,7 +1364,7 @@ void server_test(void *arg) {
         socklen_t     clientAddrSz = sizeof(clientAddr);
 #ifndef SINGLE_THREADED
         THREAD_TYPE   thread;
-        WOLFSSL_MSG("Found SINGLE_THREADED defined");
+        ESP_LOGI(TAG,"Found SINGLE_THREADED defined");
 #endif
         WOLFSSH*      ssh;
 
@@ -1375,7 +1375,7 @@ void server_test(void *arg) {
 
         threadCtx = (thread_ctx_t*)malloc(sizeof(thread_ctx_t));
         if (threadCtx == NULL) {
-            WOLFSSL_ERROR_MSG("Couldn't allocate thread context data.\n");
+            ESP_LOGE(TAG,"Couldn't allocate thread context data.\n");
             exit(EXIT_FAILURE);
         }
 
@@ -1387,7 +1387,7 @@ void server_test(void *arg) {
 
         ssh = wolfSSH_new(ctx);
         if (ssh == NULL) {
-            WOLFSSL_ERROR_MSG("Couldn't allocate SSH data.\n");
+            ESP_LOGE(TAG,"Couldn't allocate SSH data.\n");
             exit(EXIT_FAILURE);
         }
         wolfSSH_SetUserAuthCtx(ssh, &pwMapList);
@@ -1403,7 +1403,7 @@ void server_test(void *arg) {
                          );
 
         if (clientFd == -1) {
-            WOLFSSL_MSG("ERROR: failed accept");
+            ESP_LOGI(TAG,"ERROR: failed accept");
             exit(EXIT_FAILURE);
         }
 
@@ -1417,7 +1417,7 @@ void server_test(void *arg) {
         threadCtx->id = threadCount++;
         threadCtx->nonBlock = WOLFSSL_NONBLOCK;
 
-        WOLFSSL_MSG("server_worker started.");
+        ESP_LOGI(TAG,"server_worker started.");
 #ifndef SINGLE_THREADED
         ThreadStart(server_worker, threadCtx, &thread);
 
@@ -1428,32 +1428,32 @@ void server_test(void *arg) {
 #else
         server_worker(threadCtx);
 #endif /* SINGLE_THREADED */
-        WOLFSSL_MSG("server_worker completed.");
+        ESP_LOGI(TAG,"server_worker completed.");
 
     } while (multipleConnections);
-    WOLFSSL_MSG("all servers exited.");
+    ESP_LOGI(TAG,"all servers exited.");
 
     PwMapListDelete(&pwMapList);
     wolfSSH_CTX_free(ctx);
     if (wolfSSH_Cleanup() != WS_SUCCESS) {
-        WOLFSSL_ERROR_MSG("Couldn't clean up wolfSSH.\n");
+        ESP_LOGE(TAG,"Couldn't clean up wolfSSH.\n");
         exit(EXIT_FAILURE);
     }
 #if defined(HAVE_ECC) && defined(FP_ECC) && defined(HAVE_THREAD_LS)
     wc_ecc_fp_free(); /* free per thread cache */
 #endif
 
-    WOLFSSL_MSG("server test done!");
+    ESP_LOGI(TAG,"server test done!");
 
     /* Cleanup and return */
 
     if (mConnd != SOCKET_INVALID) {
-        WOLFSSL_MSG("Close mConnd socket");
+        ESP_LOGI(TAG,"Close mConnd socket");
         close(mConnd); /* Close the connection to the client   */
         mConnd = SOCKET_INVALID;
     }
     if (sockfd != SOCKET_INVALID) {
-        WOLFSSL_MSG("Close sockfd socket");
+        ESP_LOGI(TAG,"Close sockfd socket");
         close(sockfd); /* Close the socket listening for clients   */
         sockfd = SOCKET_INVALID;
     }

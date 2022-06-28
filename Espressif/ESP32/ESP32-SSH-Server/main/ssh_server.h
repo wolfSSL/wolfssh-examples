@@ -31,8 +31,6 @@
 #include <config.h>
 #endif
 
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
 
 #define NO_FILESYSTEM
 #define WOLFSSH_TEST_SERVER

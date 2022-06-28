@@ -34,11 +34,10 @@
  ******************************************************************************
  **/
 #define SINGLE_THREADED
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
 
 
-/* Edgerouter is 57600, others are typically 115200
+
+/* EdgeRouter-X is 57600, others are typically 115200
  *
  **/
 #define BAUD_RATE (57600)

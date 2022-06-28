@@ -70,9 +70,6 @@
     #warning "This project is configured using local, stale wolfSSL code. See Makefile."
 #endif
 
-#define DEBUG_WOLFSSL
-#define DEBUG_WOLFSSH
-
 #define WOLFSSL_ESPIDF
 #define WOLFSSL_ESPWROOM32
 
@@ -154,18 +151,18 @@ int set_time() {
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
     int i = 0;
-    WOLFSSL_MSG("sntp_setservername:");
+    ESP_LOGI(TAG,"sntp_setservername:");
     for (i = 0; i < NTP_SERVER_COUNT; i++) {
         const char* thisServer = ntpServerList[i];
         if (strncmp(thisServer, "\x00", 1) == 0) {
             /* just in case we run out of NTP servers */
             break;
         }
-        WOLFSSL_MSG(thisServer);
+        ESP_LOGI(TAG,"%s",thisServer);
         sntp_setservername(i, thisServer);
     }
     sntp_init();
-    WOLFSSL_MSG("sntp_init done.");
+    ESP_LOGI(TAG,"sntp_init done.");
     return res;
 }
 
@@ -261,7 +258,7 @@ void init() {
 #ifdef DEBUG_WOLFSSL
     ESP_LOGI(TAG, "wolfSSL debugging on.");
     wolfSSL_Debugging_ON();
-    WOLFSSL_MSG("Debug ON");
+    ESP_LOGI(TAG,"Debug ON");
     /* TODO ShowCiphers(); */
 #endif
 
@@ -296,21 +293,21 @@ void init() {
 #else
     while (1)
     {
-        WOLFSSL_ERROR_MSG("ERROR: No network is defined... choose USE_ENC28J60, \
-                          WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
+        ESP_LOGE(TAG,"ERROR: No network is defined... choose USE_ENC28J60, \
+                        WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
 #endif
 
     while (NoEthernet()) {
-        WOLFSSL_MSG("Waiting for ethernet...");
+        ESP_LOGI(TAG,"Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
 
     /* one of the most important aspects of security is the time and date values */
     set_time();
 
-    WOLFSSL_MSG("inet_pton"); /* TODO */
+    ESP_LOGI(TAG,"inet_pton"); /* TODO */
 
     wolfSSH_Init();
 }
@@ -348,7 +345,7 @@ void app_main(void) {
 
     for (;;) {
         /* we're not actually doing anything here, other than a heartbeat message */
-        WOLFSSL_MSG("wolfSSH Server main loop heartbeat!");
+        ESP_LOGI(TAG,"wolfSSH Server main loop heartbeat!");
 
         taskYIELD();
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
