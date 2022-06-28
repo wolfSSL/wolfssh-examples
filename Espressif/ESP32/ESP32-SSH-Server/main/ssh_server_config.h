@@ -21,8 +21,8 @@
 
 /* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
  * see CMakeLists.txt
- */
 #define WOLFSSL_USER_SETTINGS
+ */
 
 #include <driver/gpio.h>
 

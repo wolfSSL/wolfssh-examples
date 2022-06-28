@@ -79,9 +79,11 @@ endif()
  * ../../../main/my_config.h:59:32: warning: unknown option after '#pragma GCC diagnostic' kind [-Wpragmas]
  *  #pragma GCC diagnostic ignored "-W#pragma-messages" *
  */
+
+/*
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-W#pragma-messages"
-
+*/
 
 #if defined(NO_PRIVATE_CONFIG)
     /* reminder that if you put a password here,
@@ -134,4 +136,7 @@ endif()
 
 /* turn off GCC diagnostic ignored "-W#pragma-messages" from above
 */
+
+/*
 #pragma GCC diagnostic pop
+*/

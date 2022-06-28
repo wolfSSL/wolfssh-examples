@@ -34,14 +34,6 @@
    see enc28j60_helper
 */
 
-static uint8_t myMacAddress[] = {
-    0x02,
-    0x00,
-    0x00,
-    0x12,
-    0x34,
-    0x56
-};
 
 /* logging
  * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
@@ -64,7 +56,7 @@ static void eth_event_handler(void *arg,
     esp_event_base_t event_base,
     int32_t event_id,
     void *event_data) {
-    uint8_t mac_addr[6] = { 0 };
+    uint8_t mac_addr[6] = { 0x02, 0x00, 0x00, 0x12, 0x34, 0x56 };
     /* we can get the ethernet driver handle from event data */
     esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
 

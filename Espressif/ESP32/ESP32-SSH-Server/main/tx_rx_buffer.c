@@ -33,8 +33,8 @@ static const char *TAG = "SSH Server lib";
 
 
 /* TODO define size and check when assigning */
-volatile static char __attribute__((optimize("O0"))) _ExternalReceiveBuffer[ExternalReceiveBufferMaxLength];
-volatile static char __attribute__((optimize("O0"))) _ExternalTransmitBuffer[ExternalTransmitBufferMaxLength];
+volatile static char  _ExternalReceiveBuffer[ExternalReceiveBufferMaxLength];
+volatile static char  _ExternalTransmitBuffer[ExternalTransmitBufferMaxLength];
 volatile static int _ExternalReceiveBufferSz = 0;
 volatile static int _ExternalTransmitBufferSz = 0;
 
@@ -91,7 +91,7 @@ bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue
         {
             if (_ExternalReceiveBufferSz == 1)
             {
-                thisChar =  (char)_ExternalReceiveBuffer;
+                thisChar =  _ExternalReceiveBuffer[0];
                 ret = (thisChar == charValue);
            }
         }
