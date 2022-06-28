@@ -591,6 +591,14 @@ Only one connection is allowed at the time. There may be a delay when an existin
 
 ## Troubleshooting
 
+### termios.error: (5, 'Input/output error')
+
+Try a slower baud rate:
+
+```
+idf.py -b 115200 -p /dev/ttyS20 flash
+```
+
 
 ### fatal error: wolfssl/options.h: No such file or directory
 
