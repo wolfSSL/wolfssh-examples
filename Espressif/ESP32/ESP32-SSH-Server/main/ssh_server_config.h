@@ -56,7 +56,7 @@
 #undef USE_ENC28J60
 /* #define USE_ENC28J60 */
 
-/* wifi can be either STA or AP
+/* WiFi can be either STA or AP
  *  #define WOLFSSH_SERVER_IS_AP
  *  #define WOLFSSH_SERVER_IS_STA
  **/
@@ -85,7 +85,6 @@
 
 
 #define SSH_SERVER_BANNER "wolfSSH Example Server\n"
-// static const char serverBanner[] = "wolfSSH Example Server\n";
 
 #undef  SO_REUSEPORT
 
@@ -105,7 +104,7 @@
 /*
  * Time server settings.
  *
- * Accurate time is often important in cryptocgraphic key exchange.
+ * Accurate time is often important in cryptographic key exchange.
  *
  * see https://tf.nist.gov/tf-cgi/servers.cgi
  */
@@ -145,7 +144,7 @@
 /* UART pins and config */
 #include "uart_helper.h"
 
-/* TODO check / optimimize these values */
+/* TODO check / optimize these values */
 #ifndef EXAMPLE_HIGHWATER_MARK
     #define EXAMPLE_HIGHWATER_MARK 0x3FFF8000 /* 1GB - 32kB */
 #endif
@@ -165,9 +164,8 @@
 /* #define NTP_SERVER_COUNT  (int)(sizeof(NTP_SERVER_LIST) / sizeof(NTP_SERVER_LIST[0])) */
 #define NTP_SERVER_COUNT NELEMS(NTP_SERVER_LIST)
 
-// extern char* ntpServerList[NTP_SERVER_COUNT];
+/* our NTP server list is global info */
 extern char* ntpServerList[NTP_SERVER_COUNT];
-
 
 
 #ifdef  WOLFSSH_SERVER_IS_AP

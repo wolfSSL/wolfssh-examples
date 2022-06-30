@@ -61,7 +61,7 @@ static int s_retry_num = 0;
 
 /* we'll change WiFiEthernetReady in event handler
  *
- * see also bool wifi_ready()
+ * see also wifi_ready()
  */
 static volatile bool WiFiEthernetReady = 0;
 
@@ -74,7 +74,8 @@ static volatile bool WiFiEthernetReady = 0;
 void event_handler(void* arg,
                    esp_event_base_t event_base,
                    int32_t event_id,
-                   void* event_data) {
+                   void* event_data)
+{
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         WiFiEthernetReady = 0;
@@ -117,7 +118,28 @@ void event_handler(void* arg,
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
  *
  */
-void wifi_init_sta(void) {
+void wifi_init_sta(void)
+{
+    EventBits_t bits;
+    esp_event_handler_instance_t instance_any_id;
+    esp_event_handler_instance_t instance_got_ip;
+
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = EXAMPLE_ESP_WIFI_SSID,
+            .password = EXAMPLE_ESP_WIFI_PASS,
+            /* Setting a password implies station will connect to all security modes including WEP/WPA.
+             * However these modes are deprecated and not advisable to be used. Incase your Access point
+             * doesn't support WPA2, these mode can be enabled by commenting below line */
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+
+            .pmf_cfg = {
+                .capable = true,
+                .required = false
+            },
+        },
+    };
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
     s_wifi_event_group = xEventGroupCreate();
 
@@ -126,37 +148,21 @@ void wifi_init_sta(void) {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    esp_event_handler_instance_t instance_any_id;
-    esp_event_handler_instance_t instance_got_ip;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
         ESP_EVENT_ANY_ID,
         &event_handler,
         NULL,
         &instance_any_id));
+
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
         IP_EVENT_STA_GOT_IP,
         &event_handler,
         NULL,
         &instance_got_ip));
 
-    wifi_config_t wifi_config = {
-        .sta = {
-        .ssid = EXAMPLE_ESP_WIFI_SSID,
-        .password = EXAMPLE_ESP_WIFI_PASS,
-        /* Setting a password implies station will connect to all security modes including WEP/WPA.
-         * However these modes are deprecated and not advisable to be used. Incase your Access point
-         * doesn't support WPA2, these mode can be enabled by commenting below line */
-     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
 
-        .pmf_cfg = {
-        .capable = true,
-        .required = false
-    },
-    },
-    };
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -165,7 +171,7 @@ void wifi_init_sta(void) {
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+    bits = xEventGroupWaitBits(s_wifi_event_group,
         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
         pdFALSE,
         pdFALSE,
@@ -216,8 +222,8 @@ void wifi_init_sta(void) {
 static void wifi_ap_event_handler(void* arg,
                                   esp_event_base_t event_base,
                                   int32_t event_id,
-                                  void* event_data) {
-
+                                  void* event_data)
+{
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t* event =
               (wifi_event_ap_staconnected_t*) event_data;
@@ -248,20 +254,8 @@ static void wifi_ap_event_handler(void* arg,
  * See https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/softAP/main/softap_example_main.c
  *
  */
-void wifi_init_softap(void) {
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-        ESP_EVENT_ANY_ID,
-        &wifi_ap_event_handler,
-        NULL,
-        NULL));
-
+void wifi_init_softap(void)
+{
     wifi_config_t wifi_config = {
         .ap = {
         .ssid = EXAMPLE_ESP_WIFI_AP_SSID,
@@ -272,6 +266,20 @@ void wifi_init_softap(void) {
         .authmode = WIFI_AUTH_WPA2_PSK
         },
     };
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_ap();
+
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+        ESP_EVENT_ANY_ID,
+        &wifi_ap_event_handler,
+        NULL,
+        NULL));
+
     if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
@@ -289,7 +297,6 @@ void wifi_init_softap(void) {
 
 /*
  * return true when above events determined that WiFi is actually ready.
- *
  */
 bool wifi_ready()
 {

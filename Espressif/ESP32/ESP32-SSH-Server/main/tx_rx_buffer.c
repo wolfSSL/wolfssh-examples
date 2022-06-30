@@ -44,16 +44,17 @@ static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
 
 
 /*
- * initialize the external buffer (typically a UART) Receive Semaphor.
+ * initialize the external buffer (typically a UART) Receive Semaphore.
  */
-void InitReceiveSemaphore() {
+void InitReceiveSemaphore()
+{
     if (_xExternalReceiveBuffer_Semaphore == NULL) {
         ESP_LOGI(TAG, "InitReceiveSemaphore.");
 
-        /* the case of recursive mutexes is interstinbg, so alert */
+        /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG,"InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG,"InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 
         _xExternalReceiveBuffer_Semaphore =  xSemaphoreCreateMutex();
@@ -61,15 +62,16 @@ void InitReceiveSemaphore() {
 }
 
 /*
- * initialize the external buffer (typically a UART) Transmit Semaphor.
+ * initialize the external buffer (typically a UART) Transmit Semaphore.
  */
-void InitTransmitSemaphore() {
+void InitTransmitSemaphore()
+{
     if (_xExternalTransmitBuffer_Semaphore == NULL) {
 
-        /* the case of recursive mutexes is interstinbg, so alert */
+        /* the case of recursive mutexes is interesting, so alert */
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG,"InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+        ESP_LOGI(TAG,"InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
 #endif
         _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
     }
@@ -81,11 +83,12 @@ void InitTransmitSemaphore() {
  */
 bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue)
 {
-    bool ret =false;
-    char thisChar;
+    bool ret = false; /* assume not a match unless proven otherwise */
+    char thisChar; /* typically looking at position 0, e.g. user typing */
 
     InitReceiveSemaphore();
-    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
+                       (TickType_t) 10) == pdTRUE) {
 
         /* the entire thread-safety wrapper is for this code segment */
         {
@@ -98,27 +101,34 @@ bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue
         xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this? */
         ret = false;
     }
 
     return ret;
 }
 
-
-volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer() {
+volatile char* __attribute__((optimize("O0"))) ExternalReceiveBuffer()
+{
     return _ExternalReceiveBuffer;
 }
 
-volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer() {
+volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer()
+{
     return _ExternalTransmitBuffer;
 }
 
-int ExternalReceiveBufferSz() {
+/* RTOS-safe positional value of current receive buffer position.
+ * care should be take when using the number as more chars may have arrived!
+ */
+int ExternalReceiveBufferSz()
+{
     int ret = 0;
 
     InitReceiveSemaphore();
-    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore, (TickType_t) 10) == pdTRUE) {
+    if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
+                       (TickType_t) 10) == pdTRUE) {
 
         /* the entire thread-safety wrapper is for this code statement */
         {
@@ -127,7 +137,8 @@ int ExternalReceiveBufferSz() {
         xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this?  */
         ret = 0;
     }
 
@@ -139,7 +150,11 @@ int ExternalReceiveBufferSz() {
     return ret;
 }
 
-int ExternalTransmitBufferSz() {
+/* RTOS-safe positional value of current transmit buffer position.
+ * care should be take when using the number as more chars may have been sent!
+ */
+int ExternalTransmitBufferSz()
+{
     int ret;
 
     InitTransmitSemaphore();
@@ -154,7 +169,8 @@ int ExternalTransmitBufferSz() {
         xSemaphoreGive(_xExternalTransmitBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* we could not get the semaphore to update the value!
+         * TODO how to handle this? */
         ret = 0;
     }
 
@@ -170,7 +186,8 @@ int ExternalTransmitBufferSz() {
 /*
  * returns zero if ExternalReceiveBufferSz successfully assigned
  */
-int Set_ExternalReceiveBufferSz(int n) {
+int Set_ExternalReceiveBufferSz(int n)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     InitReceiveSemaphore();
@@ -183,7 +200,8 @@ int Set_ExternalReceiveBufferSz(int n) {
             {
                 _ExternalReceiveBufferSz = n;
 
-                /* ensure the next char is zero, in case the stuffer of data does not do it */
+                /* ensure the next char is zero, in case the stuffer of data
+                 * does not do it */
                 _ExternalReceiveBuffer[n + 1] = 0;
             }
 
@@ -195,7 +213,7 @@ int Set_ExternalReceiveBufferSz(int n) {
         }
     }
     else {
-        /* the new length must be betwwen zero and maximum length! */
+        /* the new length must be between zero and maximum length! */
         ret = 1;
     }
     return ret;
@@ -204,7 +222,8 @@ int Set_ExternalReceiveBufferSz(int n) {
 /*
  * returns zero if ExternalTransmitBufferSz successfully assigned
  */
-int Set_ExternalTransmitBufferSz(int n) {
+int Set_ExternalTransmitBufferSz(int n)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     InitTransmitSemaphore();
@@ -213,7 +232,7 @@ int Set_ExternalTransmitBufferSz(int n) {
      * since we also append our own zero string termination
      */
     if ( (n < 0) || (n > ExternalTransmitBufferMaxLength + 1) ) {
-        /* the new buffer size length must be betwwen zero and maximum length! */
+        /* the new buffer size length must be between zero and maximum length! */
         ret = 1;
     }
     else {
@@ -225,7 +244,8 @@ int Set_ExternalTransmitBufferSz(int n) {
             {
                 _ExternalTransmitBufferSz = n;
 
-                /* ensure the next char is zero, in case the stuffer of data does not do it */
+                /* ensure the next char is zero,
+                 * in case the stuffer of data does not do it */
                 _ExternalTransmitBuffer[n + 1] = 0;
             }
 
@@ -240,7 +260,8 @@ int Set_ExternalTransmitBufferSz(int n) {
 }
 
 
-int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
+int Set_ExternalReceiveBuffer(byte *FromData, int sz)
+{
     /* TODO this block has not yet been tested */
     int ret = 0; /* we assume success unless proven otherwise */
 
@@ -260,8 +281,9 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
              */
             {
                 memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
-                    FromData,
-                    sz);
+                       FromData,
+                       sz
+                      );
 
                 _ExternalReceiveBufferSz = sz;
             }
@@ -269,7 +291,8 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
             xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
         }
         else {
-            /* we could not get the semaphore to update the value! TODO how to handle this? */
+            /* we could not get the semaphore to update the value!
+             * TODO how to handle this? */
             ret = 1;
         }
     }
@@ -281,7 +304,8 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz) {
  * thread safe populate ToData with the contents of _ExternalTransmitBuffer
  * returns the size of the data, negative values are errors.
  **/
-int Get_ExternalTransmitBuffer(byte **ToData) {
+int Get_ExternalTransmitBuffer(byte **ToData)
+{
     int ret = 0;
     InitTransmitSemaphore();
 
@@ -302,8 +326,9 @@ int Get_ExternalTransmitBuffer(byte **ToData) {
             }
             else {
                 memcpy(*ToData,
-                    (byte*)_ExternalTransmitBuffer,
-                    thisSize);
+                       (byte*)_ExternalTransmitBuffer,
+                       thisSize
+                      );
 
                 _ExternalTransmitBufferSz = 0;
                 ret = thisSize;
@@ -322,7 +347,8 @@ int Get_ExternalTransmitBuffer(byte **ToData) {
 
 
 
-int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
+int Set_ExternalTransmitBuffer(byte *FromData, int sz)
+{
     int ret = 0; /* we assume success unless proven otherwise */
 
     /* here we need to call the thread-safe ExternalTransmitBufferSz() */
@@ -375,11 +401,13 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz) {
  * initialize external buffers and show welcome message.
  * TxPin and RxPin are for display purposes only.
  */
-int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
+int  init_tx_rx_buffer(byte TxPin, byte RxPin)
+{
     int ret = 0;
     char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
 
-    /* these inits need to be called only once, but can be repeatedly called as needed */
+    /* these inits need to be called only once,
+     * but can be repeatedly called as needed */
     InitReceiveSemaphore();
     InitTransmitSemaphore();
 
@@ -404,7 +432,11 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin) {
                                sizeof(SSH_GPIO_MESSAGE_TX)
                               );
 
-    /* the number of the Tx pin, converted to a string */
+    /* the number of the Tx pin, converted to a string.
+     *
+     * note despite Clang IntelliSense detecting duplicate code,
+     * it is NOT a duplicate. This one compares TxPin,
+     * the next one compares RxPin */
     if (TxPin <= 0x40) {
         int_to_dec(numStr, TxPin);
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));

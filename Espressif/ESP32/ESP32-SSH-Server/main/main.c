@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Adapted from Public Domain Expressif ENC28J60 Example
+ * Adapted from Public Domain Espressif ENC28J60 Example
  *
  * https://github.com/espressif/esp-idf/blob/047903c612e2c7212693c0861966bf7c83430ebf/examples/ethernet/enc28j60/main/enc28j60_example_main.c#L1
  *
@@ -83,7 +83,7 @@
 #define WOLFSSH_TEST_THREADING
 
 /*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM
- *  and "access an actual filesystem via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
+ *  and "access an actual file system via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
  *  we'll typically have neither on an embedded device:
  */
 #define NO_FILESYSTEM
@@ -106,7 +106,10 @@
 #include "ssh_server.h"
 
 /* logging
- * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+ *
+ * see
+ *   https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+ *   https://github.com/wolfSSL/wolfssl/blob/master/wolfssl/wolfcrypt/logging.h
  */
 #ifdef LOG_LOCAL_LEVEL
     #undef LOG_LOCAL_LEVEL
@@ -119,25 +122,32 @@
 
 static const char *TAG = "SSH Server main";
 
-static TickType_t DelayTicks = 10000 / portTICK_PERIOD_MS;
+/* 10 seconds, used for heartbeat message in thread */
+static TickType_t DelayTicks = (10000 / portTICK_PERIOD_MS);
 
 
-int set_time() {
+int set_time()
+{
     /* we'll also return a result code of zero */
     int res = 0;
+    int i = 0; /* counter for time servers */
+    time_t interim_time;
 
-    /* ideally, we'd like to set time from network, but let's set a default time, just in case */
-    struct tm timeinfo;
-    timeinfo.tm_year = 2022 - 1900;
-    timeinfo.tm_mon = 4;
-    timeinfo.tm_mday = 17;
-    timeinfo.tm_hour = 10;
-    timeinfo.tm_min = 46;
-    timeinfo.tm_sec = 10;
-    time_t t;
-    t = mktime(&timeinfo);
+    /* ideally, we'd like to set time from network,
+     * but let's set a default time, just in case */
+    struct tm timeinfo = {
+        .tm_year = 2022 - 1900,
+        .tm_mon = 6,
+        .tm_mday = 29,
+        .tm_hour = 10,
+        .tm_min = 46,
+        .tm_sec = 10
+    };
+    struct timeval now;
 
-    struct timeval now = { .tv_sec = t };
+    /* set interim static time */
+    interim_time = mktime(&timeinfo);
+    now = (struct timeval){ .tv_sec = interim_time };
     settimeofday(&now, NULL);
 
     /* set timezone */
@@ -147,30 +157,31 @@ int set_time() {
     /* next, let's setup NTP time servers
      *
      * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html#sntp-time-synchronization
-    */
+     */
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
 
-    int i = 0;
-    ESP_LOGI(TAG,"sntp_setservername:");
+    ESP_LOGI(TAG, "sntp_setservername:");
     for (i = 0; i < NTP_SERVER_COUNT; i++) {
         const char* thisServer = ntpServerList[i];
         if (strncmp(thisServer, "\x00", 1) == 0) {
             /* just in case we run out of NTP servers */
             break;
         }
-        ESP_LOGI(TAG,"%s",thisServer);
+        ESP_LOGI(TAG, "%s", thisServer);
         sntp_setservername(i, thisServer);
     }
     sntp_init();
-    ESP_LOGI(TAG,"sntp_init done.");
+    ESP_LOGI(TAG, "sntp_init done.");
     return res;
 }
 
 
 #include "driver/uart.h"
 
-void init_UART(void) {
+void init_UART(void)
+{
     ESP_LOGI(TAG, "Begin init_UART.");
+    int intr_alloc_flags = 0;
     const uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -179,13 +190,12 @@ void init_UART(void) {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_APB,
     };
-    int intr_alloc_flags = 0;
 
 #if CONFIG_UART_ISR_IN_IRAM
     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 #endif
-    /* We won't use a buffer for sending data. */
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    /* We won't use a buffer for sending UART_NUM_1 data. */
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2048, 0, 0, NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
@@ -194,11 +204,14 @@ void init_UART(void) {
 
 void server_session(void* args)
 {
-    while (1)
-    {
+    while (1) {
         server_test(args);
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
-        /* esp_task_wdt_reset(); */
+
+#ifdef DEBUG_WDT
+        /* if we get panic faults, perhaps the watchdog needs attention? */
+        esp_task_wdt_reset();
+#endif
     }
 }
 
@@ -227,7 +240,8 @@ bool NoEthernet()
 }
 
 #if defined(WOLFSSH_SERVER_IS_AP) || defined(WOLFSSH_SERVER_IS_STA)
-void init_nvsflash() {
+void init_nvsflash()
+{
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES
@@ -244,8 +258,9 @@ void init_nvsflash() {
 /*
  * main initialization for UART, optional ethernet, time, etc.
  */
-void init() {
-    TickType_t EthernetWaitDelayTicks = 1000 / portTICK_PERIOD_MS;
+void init()
+{
+    TickType_t EthernetWaitDelayTicks = (1000 / portTICK_PERIOD_MS);
 
     ESP_LOGI(TAG, "Begin main init.");
 
@@ -274,10 +289,12 @@ void init() {
      * WiFi Station: WOLFSSH_SERVER_IS_STA
      **/
 #if defined(USE_ENC28J60)
+    /* wired ethernet */
     ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
     init_ENC28J60(MY_MAC_ADDRESS);
 
 #elif defined( WOLFSSH_SERVER_IS_AP)
+    /* acting as an access point */
     init_nvsflash();
 
     ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
@@ -285,12 +302,14 @@ void init() {
     ESP_LOGI(TAG, "End setup WiFi Soft AP.");
 
 #elif defined(WOLFSSH_SERVER_IS_STA)
+    /* acting as a WiFi Station (client) */
     init_nvsflash();
 
     ESP_LOGI(TAG, "Begin setup WiFi STA.");
     wifi_init_sta();
     ESP_LOGI(TAG, "End setup WiFi STA.");
 #else
+    /* we should never get here */
     while (1)
     {
         ESP_LOGE(TAG,"ERROR: No network is defined... choose USE_ENC28J60, \
@@ -324,7 +343,8 @@ static bool is_our_netif(const char *prefix, esp_netif_t *netif) {
 
 */
 
-void app_main(void) {
+void app_main(void)
+{
     init();
     /* note that by the time we get here, the scheduler is already running!
      * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
@@ -351,6 +371,6 @@ void app_main(void) {
         vTaskDelay(DelayTicks ? DelayTicks : 1); /* Minimum delay = 1 tick */
     }
 
-    /* todo this is unreachable with RTOS threads, do we ever want to shut down? */
+    /* TODO this is unreachable with RTOS threads, do we ever want to shut down? */
     wolfSSH_Cleanup();
 }

@@ -96,15 +96,7 @@ void uart_tx_task(void *arg) {
 
             /* we don't want to send 0x7f as a backspace, we want a real backspace
              * TODO: optional character mapping */
-            // taskENTER_CRITICAL(NULL);
-            //char thisChar = (byte)ExternalReceiveBuffer()[0];
-            //int thisLength  = ExternalReceiveBufferSz();
-            //bool isSingleBackspace = (thisChar == 0x7f) && (thisLength == 1);
-            // taskEXIT_CRITICAL(NULL);
-
             if (ExternalReceiveBuffer_IsChar(0x7f)) {
-
-            // if ((byte)ExternalReceiveBuffer() == 0x7f && ExternalReceiveBufferSz()  == 1) {
                 sendData(TX_TASK_TAG, backspace);
             }
             else
@@ -147,7 +139,7 @@ void uart_rx_task(void *arg) {
     /* TODO do we really want malloc? probably not.
      * but in this thread, it only gets allocated once.
      **/
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
+    uint8_t* data = (uint8_t*) malloc(ExternalReceiveBufferMaxLength + 1);
 
     /*
      * when we receive chars from UART, we'll send them out SSH
@@ -163,7 +155,7 @@ void uart_rx_task(void *arg) {
          * a known good value is (20 / portTICK_RATE_MS) */
         const int rxBytes = uart_read_bytes(UART_NUM_1,
                                             data,
-                                            RX_BUF_SIZE,
+                                            ExternalReceiveBufferMaxLength,
                                             UART_TICKS_TO_WAIT);
 
         if (rxBytes > 0) {
