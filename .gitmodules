@@ -1,0 +1,6 @@
+[submodule "make-testsuite/wolfssl"]
+	path = make-testsuite/wolfssl
+	url = https://github.com/wolfSSL/wolfssl.git
+[submodule "make-testsuite/wolfssh"]
+	path = make-testsuite/wolfssh
+	url = https://github.com/wolfSSL/wolfssh.git
