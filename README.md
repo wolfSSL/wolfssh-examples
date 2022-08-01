@@ -30,6 +30,16 @@ Ubuntu and macOS. This takes a wolfSSL directory and a wolfSSH directory and
 builds it into a single static library (libwolfssh.a) and the testsuite
 test tool. It uses a Makefile and has a preconfigured user_settings.h file.
 
+# Configuration recommendations
+
+## wolfSSH Task Priority
+
+When setting up your thread that runs wolfSSL, it must have the same
+or lower priority than the networking stack thread. For example, in FreeRTOS,
+you may set the network stack thread's priority to 6 and the wolfSSH thread
+to 8, or DEFAULTTASKPRIORITY. (In FreeRTOS, the lower the priority value
+the higher the priority.)
+
 # Support
 
 For any issues related to wolfSSL or wolfSSH, please open an
