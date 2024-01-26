@@ -1,4 +1,4 @@
-/* enc28j60_helper.h
+/* tx_rx_buffer.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -17,10 +17,30 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#ifndef _TX_RX_BUFFER_H_
+#define _TX_RX_BUFFER_H_
 
-#include "stdbool.h"
-#include "esp_netif.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
-bool EthernetReady_ENC28J60();
-int init_ENC28J60(uint8_t MacAddressToAssign[6]);
+#include <string.h>
+
+/* TODO do these really need to be so big? probably not */
+/* Sizes for shared transmit and receive buffers, for
+ * both external (typically UART) and SSH data streams */
+#define EXT_RX_BUF_MAX_SZ 2048
+#define EXT_TX_BUF_MAX_SZ 2048
+
+typedef uint8_t byte;
+
+int init_tx_rx_buffer(byte TxPin, byte RxPin);
+
+int Get_ExternalTransmitBuffer(byte **ToData);
+
+int Set_ExternalTransmitBuffer(byte *FromData, int sz);
+
+int Set_ExternalReceiveBuffer(byte *FromData, int sz);
+
+bool ExternalReceiveBuffer_IsChar(char charValue);
+
+#endif /* _TX_RX_BUFFER_H_ */

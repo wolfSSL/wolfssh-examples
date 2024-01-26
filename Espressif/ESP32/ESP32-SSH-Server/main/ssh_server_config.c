@@ -19,12 +19,14 @@
  */
 #include "ssh_server_config.h"
 
-/* our NTP server list is global info */
-char* ntpServerList[NTP_SERVER_COUNT] = NTP_SERVER_LIST;
-
-void ssh_server_config_init()
+int ssh_server_config_init(void)
 {
+    int ret = ESP_OK;
     ESP_LOGI("init", "ssh_server_config_init");
+
+    /* TODO make public the esp_util show_macro() */
+/*  show_macro("NO_ESPIDF_DEFAULT",         STR_IFNDEF(NO_ESPIDF_DEFAULT)); */
+    return ret;
 }
 
 

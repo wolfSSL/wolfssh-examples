@@ -19,10 +19,82 @@ as well as the [wolfcrypt port to Espressif](https://github.com/wolfSSL/wolfssl/
 
 [wolfSSL ESP32 Hardware Acceleration Support](https://www.wolfssl.com/wolfssl-esp32-hardware-acceleration-support/)
 
+## Getting Started
+
+If you are new to wolfSSL on the Espressif ESP32, [this video](https://www.youtube.com/watch?v=CzwA3ZBZBZ8)
+can help to get started:
+
+[![Video Preview](https://img.youtube.com/vi/CzwA3ZBZBZ8/0.jpg)](https://www.youtube.com/watch?v=CzwA3ZBZBZ8)
+
+See also the [core wolfSSL examples for Espressif](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif).
+
+## Requirements
+
+The [wolfSSL library](https://github.com/wolfssl/wolfssl) is needed for this wolfSSH example. Installation
+can be either as a local repository or by using the [wolfSSL Managed Component](https://components.espressif.com/components/wolfssl/wolfssl).
+
+The Espressif development environment is needed: [ESP-IDF Version 4.x](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/index.html)
+or [ESP-IDF Version 5.x](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/).
+
+Any ESP32 with available UART pins other than USB / Console. The default is 
+`U2TXD` = `TXD_PIN` = `GPIO_NUM_17` 
+and 
+`U2RXD` = `RXD_PIN` = `GPIO_NUM_16`
+defined in the [main/ssh_server_config.h](./main/ssh_server_config.h) file.
+
+Although there's no notion of a "speed" setting in SSH, our UART bridge needs to have one set.
+The `BAUD_RATE` for the target board is defined in [main/ssh_server_config.h](./main/ssh_server_config.h) 
+and is typically:  `#define BAUD_RATE (57600)`. 
+Serial port console monitoring port is typically 74800 baud, 8N1.
+
+For more details on the UARTs and the ESP32 in general, refer to the 
+[ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
+
+## Private Config
+
+It is usually best to not publish private SSID names and passwords to GitHub. 
+As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these files, in this order:
+
+```
+# VisualGDB default
+/c/workspace/my_private_config.h
+
+# Windows 
+/workspace/my_private_config.h
+
+# WSL
+/mnt/c/workspace/my_private_config.h
+
+# Linux
+~/my_private_config.h
+```
+
+If no `my_private_config.h` file is found, default values are used. Use the `ESP-IDF menuconfig` to
+set example values.
+
+## VisualGDB Quick Start
+
+See the project files in the [VisualGBD directory](./VisualGDB). Simply open the project file and
+build. The default JTAG debugger is the [Open Source Tigard]https://github.com/tigard-tools/tigard?tab=readme-ov-file#tigard), 
+but other JTAG devices are expected to also work.
 
 ## Linux Quick Start
 
-This project does not yet work with ESP-IDF Version 5.x.
+This updated example version now supports setting `WOLFSSL_ROOT` and `WOLFSSH_ROOT` as either environment
+variables or in the project `CMakeLists.txt` like this:
+
+```cmake
+set(WOLFSSL_ROOT "C:/workspace/wolfssl")
+set(WOLFSSH_ROOT "C:/workspace/wolfssh")
+```
+
+
+## Linux Quick Start - Installation of local files
+
+This method, although operational, is no longer recommended. See above for using the in-place
+wolfSSL and wolfSSH source that can be used without copying to the local project.
+
+If you still want to have a local copy of wolfSSL _in_ you project, follow these steps:
 
 ```
 #!/bin/bash
@@ -72,48 +144,6 @@ components/wolfssl/wolfssl/options.h
 ```
 
 
-## Requirements
-
-[ESP-IDF Version 4.x](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/index.html)
-
-Any ESP32 with available UART pins other than USB / Console. The default is 
-`U2TXD` = `TXD_PIN` = `GPIO_NUM_17` 
-and 
-`U2RXD` = `RXD_PIN` = `GPIO_NUM_16`
-defined in the [main/ssh_server_config.h](./main/ssh_server_config.h) file.
-
-Although there's no notion of a "speed" setting in SSH, our UART bridge needs to have one set.
-The `BAUD_RATE` for the target board is defined in [main/ssh_server_config.h](./main/ssh_server_config.h) 
-and is typically:  `#define BAUD_RATE (57600)`. 
-Serial port console monitoring port is typically 74800 baud, 8N1.
-
-For more details on the UARTs and the ESP32 in general, refer to the 
-[ESP32 Technical Reference Manual](https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf)
-
-
-
-## Private Config
-
-It is usually best to not publish private SSID names and passwords to GitHub. 
-As such the project [CMakeLists.txt](./CMakeLists.txt) looks for one of these files, in this order:
-
-```
-# VisualGDB default
-/c/workspace/my_private_config.h
-
-# Windows 
-/workspace/my_private_config.h
-
-# WSL
-/mnt/c/workspace/my_private_config.h
-
-# Linux
-~/my_private_config.h
-```
-
-If no `my_private_config.h` file is found, default values are used. See [my_config.h](./main/my_config.h)
-
-
 ## Building
 
 The [project](ESP32-SSH-Server.vgdbproj) 
@@ -135,13 +165,6 @@ Note for wired ethernet, the ENC28J60 component make not be available in some ve
 ## ESP32 Toolchain
 
 This section is only needed for users not using VisualGDB. Otherwise, see the [VisualGDB Tutorials](https://visualgdb.com/w/tutorials/tag/esp32/).
-
-This project does not yet work with ESP-IDF Version 5.x.
-
-Install Version 4.4 of [ESP32 ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/get-started/index.html). 
-
-*NOTE:* This project has NOT yet been migrated to Version 5.0 ofthe ESP-IDF. 
-See the [Migration Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/build-system.html)
 
 To use a dual Windows/Linux (WSL) option, consider a shared directory such as `C:\ESP32\esp\`
 which would be `/mnt/c/ESP32/esp/` in WSL.

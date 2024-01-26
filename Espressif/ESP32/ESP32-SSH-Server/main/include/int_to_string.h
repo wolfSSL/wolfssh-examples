@@ -1,5 +1,4 @@
-#pragma once
-/* my_config.h
+/* int_to_string.h
  *
  * Copyright (C) 2014-2022 wolfSSL Inc.
  *
@@ -18,23 +17,22 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _INT_TO_STRING_H_
+#define _INT_TO_STRING_H_
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <string.h>
-/* TODO do these really need to be so big? probably not */
-#define ExternalReceiveBufferMaxLength 2047
-#define ExternalTransmitBufferMaxLength 2047
+    int int_to_string_VERSION(void);
 
-typedef uint8_t byte;
+    char *int_to_bin(char *dest, unsigned long n);
+    char *int_to_hex(char *dest, unsigned long n);
+    char *int_to_dec(char *dest, unsigned long n);
+    char *int_to_signed_dec(char *dest, long n);
 
-int  init_tx_rx_buffer(byte TxPin, byte RxPin);
-int Get_ExternalTransmitBuffer(byte **ToData);
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
-int Set_ExternalTransmitBuffer(byte *FromData, int sz);
-
-int Set_ExternalReceiveBuffer(byte *FromData, int sz);
-
-bool ExternalReceiveBuffer_IsChar(char charValue);
-
+#endif /* _INT_TO_STRING_H_ */

@@ -17,20 +17,44 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "ssh_server_config.h"
 #include "ssh_server.h"
 #include "tx_rx_buffer.h"
 
 
 #include <esp_task_wdt.h>
-#include <wolfssl/wolfcrypt/logging.h>
 
+/* wolfSSL */
+#ifndef WOLFSSL_USER_SETTINGS
+    #error "WOLFSSL_USER_SETTINGS should have been defined in project cmake"
+#endif
+/* Important: make sure settings.h appears before any other wolfSSL headers */
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
+#include <wolfssl/wolfcrypt/types.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#ifndef WOLFSSL_ESPIDF
+    #error "Problem with wolfSSL user_settings."
+    #error "Check [project]/components/wolfssl/include"
+#endif
+
+/* wolfSSL */
+#include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/ecc.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#include <wolfssl/wolfcrypt/coding.h>
+#include <wolfssl/wolfcrypt/sha256.h>
+
+/* wolfSSH */
+#include <wolfssh/ssh.h>
+#include <wolfssh/test.h>
 
 /* note our actual buffer is used by RTOS threads, and eventually interrupts */
-static volatile byte sshStreamTransmitBufferArray[ExternalTransmitBufferMaxLength];
-static volatile byte sshStreamReceiveBufferArray[ExternalReceiveBufferMaxLength];
+static volatile byte sshStreamTransmitBufferArray[EXT_TX_BUF_MAX_SZ];
+static volatile byte sshStreamReceiveBufferArray[EXT_RX_BUF_MAX_SZ];
 
-char * TAG = "ssh_server";
+static const char* TAG = "ssh_server";
 
 static const char samplePasswordBuffer[] =
     "jill:upthehill\n"
@@ -63,7 +87,18 @@ static const char samplePublicKeyRsaBuffer[] =
     "biE57dK6BrH5iZwVLTQKux31uCJLPhiktI3iLbdlGZEctJkTasfVSsUizwVIyRjhVKmbdI"
     "RGwkU38D043AR1h0mUoGCPIKuqcFMf gretel\n";
 
+/* #define SSH_SERVER_PROFILE */
 
+#ifdef SSH_SERVER_PROFILE
+    static int MaxSeenRxSize = 0;
+    static int MaxSeenTxSize = 0;
+#endif
+
+/* Show HW lockdepth. Oddities here are often a symptom of stack overflow. */
+#if !defined(NO_WOLFSSL_ESP32_CRYPT_HASH) && \
+     defined(WOLFSSL_ESP32_HW_LOCK_DEBUG)
+    #define SSH_SERVER_DEBUG_LOCKDEPTH
+#endif
 /* Map user names to passwords */
 /* Use arrays for username and p. The password or public key can
  * be hashed and the hash stored here. Then I won't need the type. */
@@ -80,12 +115,6 @@ typedef struct PwMapList {
     PwMap* head;
 } PwMapList;
 
-enum {
-    WS_SELECT_FAIL,
-    WS_SELECT_TIMEOUT,
-    WS_SELECT_RECV_READY,
-    WS_SELECT_ERROR_READY
-};
 
 typedef struct {
     WOLFSSH* ssh;
@@ -97,23 +126,27 @@ typedef struct {
 
 /* find a byte character [str] of length [bufSz] within [buf];
  * returns byte position if found, otherwise zero
- * TODO what if bufSz > 255?
  */
 static byte find_char(const byte* str, const byte* buf, word32 bufSz)
 {
+    int ret = 0;
     const byte* cur;
-    while (bufSz) {
+    while (bufSz && (ret == 0) && (ret < 255)) {
         cur = str;
         while (*cur != '\0') {
-            if (*cur == *buf)
-                return *cur;
+            if (*cur == *buf) {
+                ret = *cur;
+            }
             cur++;
         }
         buf++;
         bufSz--;
     }
+    if (ret == 255) {
+        ESP_LOGE(TAG, "find_char not found in 254 chars");
+    }
 
-    return 0;
+    return ret;
 }
 
 
@@ -140,56 +173,6 @@ static int dump_stats(thread_ctx_t* ctx)
 
     fprintf(stderr, "%s", stats);
     return wolfSSH_stream_send(ctx->ssh, (byte*)stats, statsSz);
-}
-
-static WC_INLINE int wSelect(int nfds,
-                             WFD_SET_TYPE* recvfds,
-                             WFD_SET_TYPE *writefds,
-                             WFD_SET_TYPE *errfds,
-                             struct timeval* timeout)
-{
-#ifdef WOLFSSL_NUCLEUS
-    int ret = NU_Select(nfds,
-        recvfds,
-        writefds,
-        errfds,
-        (UNSIGNED)timeout->tv_sec);
-    if (ret == NU_SUCCESS) {
-        return 1;
-    }
-    return 0;
-#else
-    return select(nfds, recvfds, writefds, errfds, timeout);
-#endif
-}
-
-/*
- * tcp_select; call wSelect & check for success or fail
- */
-static WC_INLINE int tcp_select(SOCKET_T socketfd, int to_sec)
-{
-    WFD_SET_TYPE recvfds, errfds;
-    int nfds = (int)socketfd + 1;
-    struct timeval timeout = { (to_sec > 0) ? to_sec : 0, 0 };
-    int result;
-
-    WFD_ZERO(&recvfds);
-    WFD_SET(socketfd, &recvfds);
-    WFD_ZERO(&errfds);
-    WFD_SET(socketfd, &errfds);
-
-    result = wSelect(nfds, &recvfds, NULL, &errfds, &timeout);
-
-    if (result == 0)
-        return WS_SELECT_TIMEOUT;
-    else if (result > 0) {
-        if (WFD_ISSET(socketfd, &recvfds))
-            return WS_SELECT_RECV_READY;
-        else if (WFD_ISSET(socketfd, &errfds))
-            return WS_SELECT_ERROR_READY;
-    }
-
-    return WS_SELECT_FAIL;
 }
 
 static int NonBlockSSH_accept(WOLFSSH* ssh)
@@ -233,24 +216,21 @@ static int NonBlockSSH_accept(WOLFSSH* ssh)
 
         /* RTOS yield */
         vTaskDelay(100 / portTICK_PERIOD_MS);
-        esp_task_wdt_reset();
+        #ifdef SSH_SERVER_WDT_RESET
+        {
+            esp_task_wdt_reset();
+        }
+        #endif
     }
     ESP_LOGI(TAG,"Exit NonBlockSSH_accept");
 
     return ret;
 }
 
-/* #define SSH_SERVER_PROFILE */
-
-#ifdef SSH_SERVER_PROFILE
-    static int MaxSeenRxSize = 0;
-    static int MaxSeenTxSize = 0;
-#endif
-
 
 /*
  * server_worker is the main thread for a given SSH connection
- **/
+ */
 static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
 {
     int ret;
@@ -301,6 +281,7 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
             /* int show_msg = 0; TODO optionally disable echo of text to USB port */
             int has_err = 0;
             this_rx_buf = (byte*)&sshStreamReceiveBufferArray;
+            vTaskDelay(10);
 
             if (!stop) {
                 do {
@@ -320,6 +301,12 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                         stop = 1;
                     }
 
+                    /* when polling, debugging can be verbose, turn it off */
+                    #ifdef DEBUG_WOLFSSH
+                        ESP_LOGV(TAG, "wolfSSH debugging off.");
+                        wolfSSH_Debugging_OFF();
+                    #endif
+
                     /* this is a blocking call, awaiting an SSH keypress
                      * unless nonBlock = 1 (normally we are NOT blocking) */
                     rxSz = wolfSSH_stream_read(threadCtx->ssh,
@@ -337,12 +324,25 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                         {
                             /*  any other negative value is an error */
                             has_err = 1;
-                            ESP_LOGE(TAG,"wolfSSH_stream_read error!");
+                            ESP_LOGE(TAG, "wolfSSH_stream_read error!");
                         }
                     }
+                    else {
+                        ESP_LOGI(TAG,"Received %d bytes from client.", rxSz);
+                    }
+
+                    /* turn debugging back on */
+                    #ifdef DEBUG_WOLFSSH
+                        ESP_LOGV(TAG, "wolfSSH debugging on.");
+                        wolfSSH_Debugging_ON();
+                    #endif
 
                     taskYIELD();
-                    esp_task_wdt_reset();
+                    #ifdef SSH_SERVER_WDT_RESET
+                    {
+                        esp_task_wdt_reset();
+                    }
+                    #endif
 
                 } while ((WOLFSSL_NONBLOCK == 0) /* we'll wait only when not using non-blocking socket */
                          &&
@@ -460,7 +460,11 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                         }
 
                         taskYIELD();
-                        esp_task_wdt_reset();
+                        #ifdef SSH_SERVER_WDT_RESET
+                        {
+                            esp_task_wdt_reset();
+                        }
+                        #endif
                     } /* while */
 
                     if (txSum < backlogSz) {
@@ -478,12 +482,12 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                 }
             }
 
-#ifdef DEBUG_WDT
+        #ifdef DEBUG_WDT
             /* if we get panic faults, perhaps the watchdog needs attention? */
             taskYIELD();
             vTaskDelay(pdMS_TO_TICKS(10));
             esp_task_wdt_reset();
-#endif
+        #endif
         } while (!stop);
     } /* if (ret == WS_SUCCESS) */
 
@@ -574,8 +578,14 @@ static int load_key(byte isEcc, byte* buf, word32 bufSz)
         if ((word32)sizeof_ecc_key_der_256 > bufSz) {
             return 0;
         }
+    #ifdef DEMO_SERVER_384
+        WMEMCPY(buf, ecc_key_der_384, sizeof_ecc_key_der_384);
+        sz = sizeof_ecc_key_der_384;
+    #else
         WMEMCPY(buf, ecc_key_der_256, sizeof_ecc_key_der_256);
         sz = sizeof_ecc_key_der_256;
+    #endif
+
     }
     else {
         if ((word32)sizeof_rsa_key_der_2048 > bufSz) {
@@ -605,12 +615,14 @@ static PwMap* PwMapNew(PwMapList* list,
                        word32 usernameSz,
                        const byte* p,
                        word32 pSz) {
-    PwMap* map;
+    PwMap* map = NULL;
 
     map = (PwMap*)malloc(sizeof(PwMap));
     if (map != NULL) {
-        wc_Sha256 sha;
+     //   wc_Sha256 sha[2] = {  };
+        wc_Sha256 sha = { };
         byte flatSz[4];
+        int fsz = 0;
 
         map->type = type;
         if (usernameSz >= sizeof(map->username))
@@ -619,11 +631,30 @@ static PwMap* PwMapNew(PwMapList* list,
         map->username[usernameSz] = 0;
         map->usernameSz = usernameSz;
 
+        ESP_LOGI(TAG, "map->username = %s", map->username);
+
         wc_InitSha256(&sha);
         c32toa(pSz, flatSz);
-        wc_Sha256Update(&sha, flatSz, sizeof(flatSz));
-        wc_Sha256Update(&sha, p, pSz);
-        wc_Sha256Final(&sha, map->p);
+
+        fsz = sizeof(flatSz);
+        ESP_LOGI(TAG, "SHA256 flatSz: 0x%02x%02x%02x%02x; size = %d",
+                      flatSz[0], flatSz[1], flatSz[2], flatSz[3], fsz);
+        ESP_LOGI(TAG, "SHA256 sample password: '%s': size = %d bytes", p, pSz);
+    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
+        ESP_LOGW(TAG, "PwMapNew sha256 final ctx->lockDepth = %d",
+                       (&sha.ctx)->lockDepth);
+        ESP_LOGW(TAG, "calling wc_Sha256Update(1) ctx->lockDepth = %d",
+                       (&sha.ctx)->lockDepth);
+    #endif
+        wc_Sha256Update((wc_Sha256*)&sha, flatSz, fsz);
+    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
+        ESP_LOGW(TAG, "calling wc_Sha256Update(2) ctx->lockDepth = %d", (&sha.ctx)->lockDepth);
+    #endif
+        wc_Sha256Update((wc_Sha256*)&sha, p, pSz);
+    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
+        ESP_LOGW(TAG, "calling wc_Sha256Final ctx->lockDepth = %d", (&sha.ctx)->lockDepth);
+    #endif
+        wc_Sha256Final((wc_Sha256*)&sha, (byte*)map->p);
 
         map->next = list->head;
         list->head = map;
@@ -663,8 +694,10 @@ static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list)
     if (list == NULL)
         return -1;
 
-    if (buf == NULL || bufSz == 0)
+    if (buf == NULL || bufSz == 0) {
+        ESP_LOGW(TAG, "Warning: LoadPasswordBuffer size is zero!");
         return 0;
+    }
 
     while (*str != 0) {
         delimiter = strchr(str, ':');
@@ -712,8 +745,10 @@ static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list)
     if (list == NULL)
         return -1;
 
-    if (buf == NULL || bufSz == 0)
+    if (buf == NULL || bufSz == 0) {
+        ESP_LOGW(TAG, "Warning: LoadPublicKeyBuffer buffer size is zero!");
         return 0;
+    }
 
     while (*str != 0) {
         /* Skip the public key type. This example will always be ssh-rsa. */
@@ -837,64 +872,6 @@ static int wsUserAuth(byte authType,
 typedef THREAD_RETURN WOLFSSH_THREAD THREAD_FUNC(void*);
 
 
-static WC_INLINE void ThreadStart(THREAD_FUNC fun, void* args, THREAD_TYPE* thread) {
-#ifdef SINGLE_THREADED
-    (void)fun;
-    (void)args;
-    (void)thread;
-#elif defined(_POSIX_THREADS) && !defined(__MINGW32__)
-#ifdef WOLFSSL_VXWORKS
-    {
-        pthread_attr_t myattr;
-        pthread_attr_init(&myattr);
-        pthread_attr_setstacksize(&myattr, 0x10000);
-        pthread_create(thread, &myattr, fun, args);
-    }
-#else
-    pthread_create(thread, 0, fun, args);
-#endif
-    return;
-#elif defined(WOLFSSL_TIRTOS)
-    /* Initialize the defaults and set the parameters. */
-    Task_Params taskParams;
-    Task_Params_init(&taskParams);
-    taskParams.arg0 = (UArg)args;
-    taskParams.stackSize = 65535;
-    *thread = Task_create((Task_FuncPtr)fun, &taskParams, NULL);
-    if (*thread == NULL) {
-        printf("Failed to create new Task\n");
-    }
-    Task_yield();
-#else
-    * thread = (THREAD_TYPE)_beginthreadex(0, 0, fun, args, 0, 0);
-#endif
-}
-
-
-static WC_INLINE void ThreadJoin(THREAD_TYPE thread)
-{
-#ifdef SINGLE_THREADED
-    (void)thread;
-#elif defined(_POSIX_THREADS) && !defined(__MINGW32__)
-    pthread_join(thread, 0);
-#elif defined(WOLFSSL_TIRTOS)
-    while (1) {
-        if (Task_getMode(thread) == Task_Mode_TERMINATED) {
-            Task_sleep(5);
-            break;
-        }
-        Task_yield();
-    }
-#else
-    int res = WaitForSingleObject((HANDLE)thread, INFINITE);
-    assert(res == WAIT_OBJECT_0);
-    res = CloseHandle((HANDLE)thread);
-    assert(res);
-    (void)res; /* Suppress un-used variable warning */
-#endif
-}
-
-
 static WC_INLINE void ThreadDetach(THREAD_TYPE thread) {
 #ifdef SINGLE_THREADED
     (void)thread;
@@ -959,27 +936,6 @@ static int my_IOSend(WOLFSSH* ssh, void* buff, word32 sz, void* ctx) {
 }
 */
 
-static WC_INLINE void tcp_set_nonblocking(SOCKET_T* sockfd)
-{
-    #ifdef USE_WINDOWS_API
-        unsigned long blocking = 1;
-        int ret = ioctlsocket(*sockfd, FIONBIO, &blocking);
-        if (ret == SOCKET_ERROR)
-            err_sys_with_errno("ioctlsocket failed");
-    #elif defined(WOLFSSL_MDK_ARM) || defined(WOLFSSL_KEIL_TCP_NET) \
-        || defined (WOLFSSL_TIRTOS)|| defined(WOLFSSL_VXWORKS) \
-        || defined(WOLFSSL_ZEPHYR)
-         /* non blocking not supported, for now */
-    #else
-        int flags = fcntl(*sockfd, F_GETFL, 0);
-        if (flags < 0)
-        ESP_LOGE(TAG,"fcntl get failed");
-            flags = fcntl(*sockfd, F_SETFL, flags | O_NONBLOCK);
-        if (flags < 0)
-            ESP_LOGE(TAG,"fcntl set failed");
-    #endif
-}
-
 void server_test(void *arg)
 {
     int DEFAULT_PORT = SSH_UART_PORT;
@@ -1014,12 +970,6 @@ void server_test(void *arg)
     wolfSSH_Debugging_ON();
     /* TODO ShowCiphers(); */
 #endif /* DEBUG_WOLFSSL */
-
-
-#ifndef WOLFSSL_TLS13
-    ret = WOLFSSL_FAILURE;
-   ESP_LOGE(TAG,"\r\nERROR: Example requires TLS v1.3.\n");
-#endif /* WOLFSSL_TLS13 */
 
     /* Initialize the server address struct with zeros */
     memset(&servAddr, 0, sizeof(servAddr));
@@ -1361,6 +1311,7 @@ void server_test(void *arg)
         const char* bufName;
         byte buf[SCRATCH_BUFFER_SZ];
         word32 bufSz;
+        int ret = 0;
 
         bufSz = load_key(useEcc, buf, SCRATCH_BUFFER_SZ);
         if (bufSz == 0) {
@@ -1378,7 +1329,11 @@ void server_test(void *arg)
         bufSz = (word32)strlen(samplePasswordBuffer);
         memcpy(buf, samplePasswordBuffer, bufSz);
         buf[bufSz] = 0;
-        LoadPasswordBuffer(buf, bufSz, &pwMapList);
+        ret = LoadPasswordBuffer(buf, bufSz, &pwMapList);
+        if (ret != 0) {
+            ESP_LOGE(TAG, "Error: failed LoadPasswordBuffer %d", ret);
+            exit(EXIT_FAILURE);
+        }
 
         bufName = useEcc ? samplePublicKeyEccBuffer :
                            samplePublicKeyRsaBuffer;
@@ -1386,6 +1341,10 @@ void server_test(void *arg)
         memcpy(buf, bufName, bufSz);
         buf[bufSz] = 0;
         LoadPublicKeyBuffer(buf, bufSz, &pwMapList);
+        if (ret != 0) {
+            ESP_LOGE(TAG, "Error: failed LoadPasswordBuffer %d", ret);
+            exit(EXIT_FAILURE);
+        }
     }
 
     listen(sockfd, 5);
@@ -1451,17 +1410,22 @@ void server_test(void *arg)
 
         ESP_LOGI(TAG,"server_worker started.");
 #ifndef SINGLE_THREADED
+    #ifdef WOLFSSH_TEST_THREADING
         ThreadStart(server_worker, threadCtx, &thread);
 
         if (multipleConnections)
             ThreadDetach(thread);
         else
             ThreadJoin(thread);
+    #else
+        /* see "wolfssh/test.h" check user_settings.h */
+        #error "WOLFSSH_TEST_THREADING must be enabled unless SINGLE_THREADED"
+    #endif
 #else
         server_worker(threadCtx);
 #endif /* SINGLE_THREADED */
         ESP_LOGI(TAG,"server_worker completed.");
-
+        vTaskDelay(10);
     } while (multipleConnections);
     ESP_LOGI(TAG,"all servers exited.");
 

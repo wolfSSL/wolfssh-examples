@@ -17,18 +17,24 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#ifndef _UART_HELPER_H_
+#define _UART_HELPER_H_
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_system.h"
-#include "esp_log.h"
-#include "driver/uart.h"
-#include "string.h"
-#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_system.h>
+#include <esp_log.h>
+#include <driver/uart.h>
+#include <driver/gpio.h>
 
-void uart_send_welcome();
+void init_UART(void);
+
+void uart_send_welcome(void);
+
 void uart_tx_task(void *arg);
+
 void uart_rx_task(void *arg);
 
 int sendData(const char* logName, const char* data);
+
+#endif /* _UART_HELPER_H_ */
