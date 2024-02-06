@@ -1,6 +1,6 @@
 /* ssh_server.h
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -33,24 +33,9 @@
     #include <wolfssl/options.h>
 #endif
 
-///* wolfSSL */
-//#include <wolfssl/ssl.h>
-//#include <wolfssl/wolfcrypt/logging.h>
-//#include <wolfssl/wolfcrypt/sha256.h>
-//#include <wolfssl/wolfcrypt/coding.h>
-//
-///* wolfSSH */
-//#include <wolfssh/ssh.h>
-//#include <wolfssl/wolfcrypt/ecc.h>
-
-
-// #include <pthread.h>
-
 /* socket includes */
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
-
-
 
 #ifdef NO_FILESYSTEM
     #include <wolfssh/certs_test.h>
@@ -58,7 +43,6 @@
         #include <wolfssh/wolfscp.h>
     #endif
 #endif
-
 
 /* the main SSH Server demo*/
 void server_test(void *arg);

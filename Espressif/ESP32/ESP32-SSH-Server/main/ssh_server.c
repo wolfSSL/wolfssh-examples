@@ -1,6 +1,6 @@
 /* ssh_server.c
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -619,7 +619,6 @@ static PwMap* PwMapNew(PwMapList* list,
 
     map = (PwMap*)malloc(sizeof(PwMap));
     if (map != NULL) {
-     //   wc_Sha256 sha[2] = {  };
         wc_Sha256 sha = { };
         byte flatSz[4];
         int fsz = 0;

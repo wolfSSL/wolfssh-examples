@@ -1,12 +1,12 @@
 #  [wolfSSL Project]/components/wolfssh/CMakeLists.txt
 #
-#  Copyright (C) 2006-2023 WOLFSSL Inc.
+#  Copyright (C) 2014-2024 wolfSSL Inc.
 #
 #  This file is part of wolfSSH.
 #
 #  wolfSSH is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
+#  the Free Software Foundation; either version 3 of the License, or
 #  (at your option) any later version.
 #
 #  wolfSSH is distributed in the hope that it will be useful,
@@ -15,8 +15,8 @@
 #  GNU General Public License for more details.
 #
 #  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
+#  along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
+#
 #
 # cmake for wolfSSH Espressif projects v5.6.6 r1
 #
@@ -159,6 +159,8 @@ else()
     message(STATUS "Not staging environment, no managed_components wolfssl")
     set(WOLFSSL_COMPONENT_NAME "wolfssl")
 endif()
+
+set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
 
 # function: IS_WOLFSSH_SOURCE
 #  parameter: DIRECTORY_PARAMETER = the directory to test

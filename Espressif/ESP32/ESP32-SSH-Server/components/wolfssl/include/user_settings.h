@@ -1,6 +1,6 @@
 /* user_settings.h (this is a special file specifically for ESP SSH to UART)
  *
- * Copyright (C) 2006-2023 wolfSSL Inc.
+ * Copyright (C) 2006-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSL.
  *
@@ -29,7 +29,8 @@
 
 #define WOLFSSL_ESPIDF
 
-#define DEBUG_WOLFSSH
+/* optionally turn on debugging to see connection steps, etc: */
+/* #define DEBUG_WOLFSSH */
 
 /* The Espressif sdkconfig will have chipset info.
 **
