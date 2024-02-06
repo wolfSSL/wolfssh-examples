@@ -29,9 +29,6 @@
 
 #define WOLFSSL_ESPIDF
 
-/* optionally turn on debugging to see connection steps, etc: */
-/* #define DEBUG_WOLFSSH */
-
 /* The Espressif sdkconfig will have chipset info.
 **
 ** Possible values:
@@ -54,7 +51,8 @@
     #define WOLFSSH_TERM
 
     #undef  DEBUG_WOLFSSH
-    #define DEBUG_WOLFSSH
+    /* Optionally turn on wolfSSH debugging messages */
+    /* #define DEBUG_WOLFSSH */
 
     #undef  WOLFSSL_KEY_GEN
     #define WOLFSSL_KEY_GEN
@@ -248,7 +246,9 @@
 /* #define WOLFSSL_AES_COUNTER */
 
 /* debug options */
+/* optionally turn on debugging to see wolfSSL connection steps, etc: */
 /* #define DEBUG_WOLFSSL */
+
 /* #define WOLFSSL_ESP32_CRYPT_DEBUG */
 /* #define WOLFSSL_ATECC508A_DEBUG          */
 
@@ -274,7 +274,6 @@
 /***** Use Integer Heap Math *****/
 /* #undef USE_FAST_MATH          */
 /* #define USE_INTEGER_HEAP_MATH */
-
 
 #define WOLFSSL_SMALL_STACK
 
