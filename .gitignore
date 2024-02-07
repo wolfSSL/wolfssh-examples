@@ -1,0 +1,32 @@
+﻿
+# Visual Studio Code Workspace Files
+*.vscode
+*.userprefs
+*.exe
+*.dll
+.vs
+Backup
+UpgradeLog.htm
+*.aps
+*.VC.db
+*.filters
+
+
+# Espressif sdk config default should be saved in sdkconfig.defaults
+# we won't track the actual working sdkconfig files
+/Espressif/**/sdkconfig
+/Espressif/**/sdkconfig.old
+
+# VisualGDB
+**/.visualgdb
+
+# auto-created CMake backups
+**/CMakeLists.txt.old
+
+# CMake  build directory
+/out
+/out_temp
+
+# Visual Studio
+**/.vs
+**/build

@@ -1,7 +1,6 @@
-#pragma once
 /* my_config.h
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -17,8 +16,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
+
+#ifndef _MY_CONFIG_H_
+#define _MY_CONFIG_H_
+
 #define  USE_MY_PRIVATE_CONFIG
 
 /*
@@ -68,7 +70,9 @@ endif()
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-#define EXAMPLE_ESP_WIFI_AP_SSID      "TheBucketHill"
+#ifndef EXAMPLE_ESP_WIFI_AP_SSID
+    #define EXAMPLE_ESP_WIFI_AP_SSID      "TheBucketHill"
+#endif
 #define EXAMPLE_ESP_WIFI_AP_PASS      "jackorjill"
 
 /* clang intellisense gives a pragma-messages warning
@@ -97,8 +101,8 @@ endif()
     #include SYSPROGS_MY_PRIVATE_CONFIG
 
 #elif defined(WINDOWS_MY_PRIVATE_CONFIG)
-    #pragma message ( "Found WINDOWS_MY_PRIVATE_CONFIG !" )
-    #pragma message ( XSTR(WINDOWS_MY_PRIVATE_CONFIG) )
+    /* #pragma message ( "Found WINDOWS_MY_PRIVATE_CONFIG !" ) */
+    /* #pragma message ( XSTR(WINDOWS_MY_PRIVATE_CONFIG) )     */
     #include WINDOWS_MY_PRIVATE_CONFIG
 
 #elif defined(WSL_MY_PRIVATE_CONFIG)
@@ -111,27 +115,29 @@ endif()
     #pragma message ( XSTR(LINUX_MY_PRIVATE_CONFIG) )
     #include LINUX_MY_PRIVATE_CONFIG
 
+#elif defined(CONFIG_IDF_TARGET_ESP8266)
+    /* config TODO */
 #else
     /* reminder that if you put a password here,
      * it might get checked into GitHub!         */
-#warning "Not using my_private_config.h"
+    #warning "Not using my_private_config.h"
 
-#ifndef  CONFIG_EXAMPLE_WIFI_SSID
-    #define CONFIG_EXAMPLE_WIFI_SSID "TheBucketHill"
-#endif
-#ifndef  CONFIG_EXAMPLE_WIFI_PASSWORD
-    #define CONFIG_EXAMPLE_WIFI_PASSWORD "jackorjill"
-#endif
+    #ifndef  CONFIG_EXAMPLE_WIFI_SSID
+        #define CONFIG_EXAMPLE_WIFI_SSID "TheBucketHill"
+    #endif
+    #ifndef  CONFIG_EXAMPLE_WIFI_PASSWORD
+        #define CONFIG_EXAMPLE_WIFI_PASSWORD "jackorjill"
+    #endif
 
-#ifndef  CONFIG_ESP_WIFI_SSID
-    #define CONFIG_ESP_WIFI_SSID "TheBucketHill"
-#endif
-#ifndef  CONFIG_ESP_WIFI_PASSWORD
-    #define CONFIG_ESP_WIFI_PASSWORD "jackorjill"
-#endif
+    #ifndef  CONFIG_ESP_WIFI_SSID
+        #define CONFIG_ESP_WIFI_SSID "TheBucketHill"
+    #endif
+    #ifndef  CONFIG_ESP_WIFI_PASSWORD
+        #define CONFIG_ESP_WIFI_PASSWORD "jackorjill"
+    #endif
 
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
+    #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
+    #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 #endif
 
 /* turn off GCC diagnostic ignored "-W#pragma-messages" from above
@@ -140,3 +146,5 @@ endif()
 /*
 #pragma GCC diagnostic pop
 */
+
+#endif /* _MY_CONFIG_H_ */

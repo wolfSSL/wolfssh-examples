@@ -1,6 +1,6 @@
 /* uart_helper.c
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -16,24 +16,32 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
-#include <esp_task_wdt.h>
+
+/* This is a specialized UART helper for the SSH to UART example*/
+/* See "sdkconfig-debug.h for ESP8266 " */
+
+#include "sdkconfig.h"
+
+#if defined(CONFIG_IDF_TARGET_ESP8266)
+    /* TODO  */
+#endif
 
 #include "uart_helper.h"
 #include "tx_rx_buffer.h"
-
-#include "driver/uart.h"
-#include "esp_log.h"
-#include "string.h"
+#include "ssh_server_config.h"
 #include "ssh_server.h"
 
+#include <esp_task_wdt.h>
+#include <driver/uart.h>
+#include <driver/gpio.h>
+#include <esp_log.h>
 
 /* portTICK_PERIOD_MS is ( ( TickType_t ) 1000 / configTICK_RATE_HZ )
  * configTICK_RATE_HZ is CONFIG_FREERTOS_HZ
  * CONFIG_FREERTOS_HZ is 100
  **/
-#define UART_TICKS_TO_WAIT (20 / portTICK_RATE_MS)
+#define UART_TICKS_TO_WAIT (20 / portTICK_PERIOD_MS)
 
 /*
  * see examples: https://github.com/espressif/esp-idf/blob/master/examples/peripherals/uart/uart_echo/main/uart_echo_example_main.c
@@ -43,7 +51,7 @@
 /* we are going to use a real backspace instead of 0x7f observed */
 const char backspace[1] = { (char)0x08 };
 static SemaphoreHandle_t xUART_Semaphore = NULL;
-static char* TAG = "uart_helper";
+static const char* TAG = "uart_helper";
 
 /*
  * startupMessage is the message before actually connecting to UART in server task thread.
@@ -53,6 +61,37 @@ static char startupMessage[] =
       "Welcome to ESP32 SSH Server!"
       "\n\n"
       "Press [Enter]\n\n";
+
+void init_UART(void)
+{
+#if defined(CONFIG_IDF_TARGET_ESP8266)
+    /* TODO */
+    ESP_LOGE(TAG, "Error: init_UART not implemented for ESP8266.");
+#else
+    /* not ESP8266 */
+    ESP_LOGI(TAG, "Begin init_UART.");
+    int intr_alloc_flags = 0;
+    const uart_config_t uart_config = {
+        .baud_rate = BAUD_RATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    #if !defined(CONFIG_IDF_TARGET_ESP8266)
+        .source_clk = UART_SCLK_DEFAULT,
+    #endif
+    };
+
+    #if CONFIG_UART_ISR_IN_IRAM
+        intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+    #endif
+    /* We won't use a buffer for sending UART_NUM_1 data. */
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2048, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+#endif /* CONFIG_IDF_TARGET_ESP8266 */
+    ESP_LOGI(TAG, "End init_UART.");
+}
 
 /*
  * welcome message
@@ -90,6 +129,8 @@ void uart_tx_task(void *arg) {
 
     /* this RTOS task will never exit */
     while (1) {
+        vTaskDelay(10);
+
         if (ExternalReceiveBufferSz() > 0)
         {
             ESP_LOGI(TAG,"UART Send Data");
@@ -134,12 +175,14 @@ void InitSemaphore()
  * buffer to SEND (typically out to the SSH client)
  */
 void uart_rx_task(void *arg) {
+    vTaskDelay(1000000000); /* TODO */
+
     InitSemaphore();
 
     /* TODO do we really want malloc? probably not.
      * but in this thread, it only gets allocated once.
      **/
-    uint8_t* data = (uint8_t*) malloc(ExternalReceiveBufferMaxLength + 1);
+    uint8_t* data = (uint8_t*) malloc(EXT_RX_BUF_MAX_SZ + 1);
 
     /*
      * when we receive chars from UART, we'll send them out SSH
@@ -153,9 +196,10 @@ void uart_rx_task(void *arg) {
         /* note some examples have UART_TICKS_TO_WAIT = 1000,
          * which results in very sluggish response.
          * a known good value is (20 / portTICK_RATE_MS) */
+        vTaskDelay(10);
         const int rxBytes = uart_read_bytes(UART_NUM_1,
                                             data,
-                                            ExternalReceiveBufferMaxLength,
+                                            EXT_RX_BUF_MAX_SZ,
                                             UART_TICKS_TO_WAIT);
 
         if (rxBytes > 0) {

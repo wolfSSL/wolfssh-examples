@@ -1,6 +1,6 @@
-/* enc28j60_helper.h
+/* uart_hlper.h
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -17,10 +17,24 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#ifndef _UART_HELPER_H_
+#define _UART_HELPER_H_
 
-#include "stdbool.h"
-#include "esp_netif.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_system.h>
+#include <esp_log.h>
+#include <driver/uart.h>
+#include <driver/gpio.h>
 
-bool EthernetReady_ENC28J60();
-int init_ENC28J60(uint8_t MacAddressToAssign[6]);
+void init_UART(void);
+
+void uart_send_welcome(void);
+
+void uart_tx_task(void *arg);
+
+void uart_rx_task(void *arg);
+
+int sendData(const char* logName, const char* data);
+
+#endif /* _UART_HELPER_H_ */

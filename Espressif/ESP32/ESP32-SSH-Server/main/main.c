@@ -1,6 +1,6 @@
-/* ssh_server.h
+/* main.c
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -30,77 +30,42 @@
  *
  */
 
-/* WOLFSSL_USER_SETTINGS is defined here only for the syntax highlighter
- * see CMakeLists.txt
-#define WOLFSSL_USER_SETTINGS
- */
-
 #include "sdkconfig.h"
-
 /* include ssh_server_config.h first  */
 #include "my_config.h"
 #include "ssh_server_config.h"
+#include "time_helper.h"
+#include "main.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_netif.h>
-#include <esp_event.h>
-#include <driver/gpio.h>
+
+/* wolfSSL */
+#ifndef WOLFSSL_USER_SETTINGS
+    #error "WOLFSSL_USER_SETTINGS should have been defined in project cmake"
+#endif
+/* Important: make sure settings.h appears before any other wolfSSL headers */
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#ifndef WOLFSSL_ESPIDF
+    #error "Problem with wolfSSL user_settings."
+    #error "Check [project]/components/wolfssl/include"
+#endif
+#ifdef WOLFSSL_STALE_EXAMPLE
+    #warning "This project is configured using local, stale wolfSSL code. See Makefile."
+#endif
+
 
 /* see ssh_server_config.h for optional use of physical ethernet: USE_ENC28J60 */
 #ifdef USE_ENC28J60
     #include <enc28j60_helper.h>
 #endif
 
-/*
- * wolfSSL
- *
- * IMPORTANT: Ensure wolfSSL settings.h appears before any other wolfSSL headers
- *
- * Example locations:
-
- *   Standard ESP-IDF:
- *   C:\Users\[username]\Desktop\esp-idf\components\wolfssh\wolfssl\wolfcrypt\settings.h
- *
- *   VisualGDB
- *   C:\SysGCC\esp32\esp-idf\[version]\components\wolfssl\wolfcrypt\settings.h
- *
- **/
-#ifdef WOLFSSL_STALE_EXAMPLE
-    #warning "This project is configured using local, stale wolfSSL code. See Makefile."
-#endif
-
-#define WOLFSSL_ESPIDF
-#define WOLFSSL_ESPWROOM32
-
-#define WOLFSSL_TLS13
-#define HAVE_TLS_EXTENSIONS
-#define HAVE_SUPPORTED_CURVES
-#define HAVE_ECC
-#define HAVE_HKDF
-#define HAVE_FFDHE_8192 /* or one of the other supported FFDHE sizes [2048, 3072, 4096, 6144, 8192] */
-#define WC_RSA_PSS
-#define WOLFSSH_TEST_THREADING
-
-/*  note "file system": "load keys and certificate from files" vs NO_FILESYSTEM
- *  and "access an actual file system via SFTP/SCP" vs WOLFSSH_NO_FILESYSTEM
- *  we'll typically have neither on an embedded device:
- */
-#define NO_FILESYSTEM
-#define WOLFSSH_NO_FILESYSTEM
-
-/* TODO check wolfSSL config
- * #include <wolfssl/include/user_settings.h>
- * make sure this appears before any other wolfSSL headers
- */
-
-#include <wolfssl/wolfcrypt/logging.h>
-#include <wolfssl/ssl.h>
-
 #ifdef USE_ENC28J60
     /* no WiFi when using external ethernet */
 #else
-    #include "wifi.h"
+    #include "wifi_connect.h"
 #endif
 
 #include "ssh_server.h"
@@ -115,92 +80,15 @@
     #undef LOG_LOCAL_LEVEL
 #endif
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
-#include "esp_log.h"
+#include <esp_log.h>
 
-/* time */
-#include  <lwip/apps/sntp.h>
+#define THIS_MAX_MAIN_STACK_SIZE 6000
 
 static const char *TAG = "SSH Server main";
 
 /* 10 seconds, used for heartbeat message in thread */
-static TickType_t DelayTicks = (10000 / portTICK_PERIOD_MS);
+static TickType_t DelayTicks = (60000 / portTICK_PERIOD_MS);
 
-
-int set_time()
-{
-    /* we'll also return a result code of zero */
-    int res = 0;
-    int i = 0; /* counter for time servers */
-    time_t interim_time;
-
-    /* ideally, we'd like to set time from network,
-     * but let's set a default time, just in case */
-    struct tm timeinfo = {
-        .tm_year = 2022 - 1900,
-        .tm_mon = 6,
-        .tm_mday = 29,
-        .tm_hour = 10,
-        .tm_min = 46,
-        .tm_sec = 10
-    };
-    struct timeval now;
-
-    /* set interim static time */
-    interim_time = mktime(&timeinfo);
-    now = (struct timeval){ .tv_sec = interim_time };
-    settimeofday(&now, NULL);
-
-    /* set timezone */
-    setenv("TZ", TIME_ZONE, 1);
-    tzset();
-
-    /* next, let's setup NTP time servers
-     *
-     * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html#sntp-time-synchronization
-     */
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-
-    ESP_LOGI(TAG, "sntp_setservername:");
-    for (i = 0; i < NTP_SERVER_COUNT; i++) {
-        const char* thisServer = ntpServerList[i];
-        if (strncmp(thisServer, "\x00", 1) == 0) {
-            /* just in case we run out of NTP servers */
-            break;
-        }
-        ESP_LOGI(TAG, "%s", thisServer);
-        sntp_setservername(i, thisServer);
-    }
-    sntp_init();
-    ESP_LOGI(TAG, "sntp_init done.");
-    return res;
-}
-
-
-#include "driver/uart.h"
-
-void init_UART(void)
-{
-    ESP_LOGI(TAG, "Begin init_UART.");
-    int intr_alloc_flags = 0;
-    const uart_config_t uart_config = {
-        .baud_rate = BAUD_RATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_APB,
-    };
-
-#if CONFIG_UART_ISR_IN_IRAM
-    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-#endif
-    /* We won't use a buffer for sending UART_NUM_1 data. */
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2048, 0, 0, NULL, intr_alloc_flags));
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-
-    ESP_LOGI(TAG, "End init_UART.");
-}
 
 void server_session(void* args)
 {
@@ -242,15 +130,27 @@ bool NoEthernet()
 #if defined(WOLFSSH_SERVER_IS_AP) || defined(WOLFSSH_SERVER_IS_STA)
 void init_nvsflash()
 {
+    esp_err_t ret = ESP_OK;
     ESP_LOGI(TAG, "Setting up nvs flash for WiFi.");
-    esp_err_t ret = nvs_flash_init();
+
+    ret = nvs_flash_init();
+
+#if defined(CONFIG_IDF_TARGET_ESP8266)
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+#else
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES
           ||
-        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND
+       ) {
 
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+#endif
+
     ESP_ERROR_CHECK(ret);
 }
 #endif
@@ -258,26 +158,37 @@ void init_nvsflash()
 /*
  * main initialization for UART, optional ethernet, time, etc.
  */
-void init()
+int init(void)
 {
+    int ret = ESP_OK;
     TickType_t EthernetWaitDelayTicks = (1000 / portTICK_PERIOD_MS);
 
     ESP_LOGI(TAG, "Begin main init.");
 
-#ifdef DEBUG_WOLFSSH
-    ESP_LOGI(TAG, "wolfSSH debugging on.");
-    wolfSSH_Debugging_ON();
-#endif
+    #ifdef DEBUG_WOLFSSH
+    {
+        ESP_LOGI(TAG, "wolfSSH debugging on.");
+        wolfSSH_Debugging_ON();
+    }
+    #endif
 
-
-#ifdef DEBUG_WOLFSSL
-    ESP_LOGI(TAG, "wolfSSL debugging on.");
-    wolfSSL_Debugging_ON();
-    ESP_LOGI(TAG,"Debug ON");
+    #ifdef DEBUG_WOLFSSL
+    {
+        ESP_LOGI(TAG, "wolfSSL debugging on.");
+        wolfSSL_Debugging_ON();
+        ESP_LOGI(TAG, "Debug ON");
+    }
     /* TODO ShowCiphers(); */
-#endif
+    #endif
 
+    /* Set time for cert validation.
+     * Some lwIP APIs, including SNTP functions, are not thread safe. */
+    ret = set_time(); /* need to setup NTP before WiFi */
+
+#ifndef DISABLE_SSH_UART
+    /* Our "External" device will be the UART, connected to the SSH server */
     init_UART();
+#endif
 
     /*
      * here we have one of three options:
@@ -288,47 +199,65 @@ void init()
      *
      * WiFi Station: WOLFSSH_SERVER_IS_STA
      **/
-#if defined(USE_ENC28J60)
-    /* wired ethernet */
-    ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
-    init_ENC28J60(MY_MAC_ADDRESS);
-
-#elif defined( WOLFSSH_SERVER_IS_AP)
-    /* acting as an access point */
-    init_nvsflash();
-
-    ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
-    wifi_init_softap();
-    ESP_LOGI(TAG, "End setup WiFi Soft AP.");
-
-#elif defined(WOLFSSH_SERVER_IS_STA)
-    /* acting as a WiFi Station (client) */
-    init_nvsflash();
-
-    ESP_LOGI(TAG, "Begin setup WiFi STA.");
-    wifi_init_sta();
-    ESP_LOGI(TAG, "End setup WiFi STA.");
-#else
-    /* we should never get here */
-    while (1)
+    #if defined(USE_ENC28J60)
     {
-        ESP_LOGE(TAG,"ERROR: No network is defined... choose USE_ENC28J60, \
-                        WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
-        vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
+        /* wired ethernet */
+        ESP_LOGI(TAG, "Found USE_ENC28J60 config.");
+        init_ENC28J60(MY_MAC_ADDRESS);
     }
-#endif
+
+    #elif defined( WOLFSSH_SERVER_IS_AP)
+    {
+        /* acting as an access point */
+        init_nvsflash();
+
+        ESP_LOGI(TAG, "Begin setup WiFi Soft AP.");
+        wifi_init_softap();
+        ESP_LOGI(TAG, "End setup WiFi Soft AP.");
+    }
+
+    #elif defined(WOLFSSH_SERVER_IS_STA)
+    {
+        /* acting as a WiFi Station (client) */
+        init_nvsflash();
+
+        ESP_LOGI(TAG, "Begin setup WiFi STA.");
+        wifi_init_sta();
+        ESP_LOGI(TAG, "End setup WiFi STA.");
+    }
+    #else
+    {
+        /* we should never get here */
+        while (1)
+        {
+            ESP_LOGE(TAG,
+                "ERROR: No network is defined... choose USE_ENC28J60, \
+                            WOLFSSH_SERVER_IS_AP, or WOLFSSH_SERVER_IS_STA ");
+            vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
+        }
+    }
+    #endif
 
     while (NoEthernet()) {
         ESP_LOGI(TAG,"Waiting for ethernet...");
         vTaskDelay(EthernetWaitDelayTicks ? EthernetWaitDelayTicks : 1);
     }
 
-    /* one of the most important aspects of security is the time and date values */
-    set_time();
-
     ESP_LOGI(TAG,"inet_pton"); /* TODO */
 
-    wolfSSH_Init();
+    /* Once we are connected to the network, start & wait for NTP time */
+    ret = set_time_wait_for_ntp();
+
+    if (ret < -1) {
+        /* a value of -1 means there was no NTP server, so no need to wait */
+        ESP_LOGI(TAG, "Waiting 10 more seconds for NTP to complete." );
+        vTaskDelay(10000 / portTICK_PERIOD_MS); /* brute-force solution */
+        esp_show_current_datetime();
+    }
+
+    ret = wolfSSH_Init();
+
+    return ret;
 }
 
 /**
@@ -345,21 +274,82 @@ static bool is_our_netif(const char *prefix, esp_netif_t *netif) {
 
 void app_main(void)
 {
+    /* main stack size: 4048 */
+    int stack_start = 0;
+
+    ESP_LOGI(TAG, "---------------- wolfSSL Benchmark Example -------------");
+    ESP_LOGI(TAG, "--------------------------------------------------------");
+    ESP_LOGI(TAG, "--------------------------------------------------------");
+    ESP_LOGI(TAG, "---------------------- BEGIN MAIN ----------------------");
+    ESP_LOGI(TAG, "--------------------------------------------------------");
+    ESP_LOGI(TAG, "--------------------------------------------------------");
+#ifdef CONFIG_ESP_MAIN_TASK_STACK_SIZE
+    ESP_LOGI(TAG, "ESP_TASK_MAIN_STACK: %d", CONFIG_ESP_MAIN_TASK_STACK_SIZE);
+    if (CONFIG_ESP_MAIN_TASK_STACK_SIZE > THIS_MAX_MAIN_STACK_SIZE) {
+        ESP_LOGW(TAG, "Warning: excessively large main task size!");
+    }
+#endif
+#ifdef ESP_TASK_MAIN_STACK
+    ESP_LOGI(TAG, "ESP_TASK_MAIN_STACK: %d", ESP_TASK_MAIN_STACK);
+#endif
+#ifdef ESP_TASK_MAIN_STACK
+    ESP_LOGI(TAG, "ESP_TASK_MAIN_STACK: %d", ESP_TASK_MAIN_STACK);
+#endif
+#ifdef TASK_EXTRA_STACK_SIZE
+    ESP_LOGI(TAG, "TASK_EXTRA_STACK_SIZE: %d", TASK_EXTRA_STACK_SIZE);
+#endif
+#ifdef INCLUDE_uxTaskGetStackHighWaterMark
+    ESP_LOGI(TAG, "CONFIG_ESP_MAIN_TASK_STACK_SIZE = %d bytes (%d words)",
+                   CONFIG_ESP_MAIN_TASK_STACK_SIZE,
+                   (int)(CONFIG_ESP_MAIN_TASK_STACK_SIZE / sizeof(void*)));
+
+    /* Returns the high water mark of the stack associated with xTask. That is,
+     * the minimum free stack space there has been (in bytes not words, unlike
+     * vanilla FreeRTOS) since the task started. The smaller the returned
+     * number the closer the task has come to overflowing its stack.
+     * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos_idf.html
+     */
+    stack_start = uxTaskGetStackHighWaterMark(NULL);
+    ESP_LOGI(TAG, "Stack Start HWM: %d bytes", stack_start);
+#endif
+    ESP_LOGI(TAG, "UART_RX_TASK_STACK_SIZE:   %d bytes",
+                   UART_RX_TASK_STACK_SIZE);
+    ESP_LOGI(TAG, "UART_TX_TASK_STACK_SIZE:   %d bytes",
+                   UART_TX_TASK_STACK_SIZE);
+    ESP_LOGI(TAG, "SERVER_SESSION_STACK_SIZE: %d bytes",
+                   SERVER_SESSION_STACK_SIZE);
+#ifdef ESP_ENABLE_WOLFSSH
+    ESP_LOGI(TAG, "SSH DEFAULT_WINDOW_SZ:     %d bytes",
+                   DEFAULT_WINDOW_SZ);
+#else
+    #error "ESP_ENABLE_WOLFSSH ust be enabled for this project"
+#endif
+#if defined(HAVE_VERSION_EXTENDED_INFO)
+    esp_ShowExtendedSystemInfo();
+#endif
+
     init();
-    /* note that by the time we get here, the scheduler is already running!
-     * see https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
+    /* Note that by the time we get here, the scheduler is already running!
+     * See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/freertos.html#esp-idf-freertos-applications
      * Unlike Vanilla FreeRTOS, users must not call vTaskStartScheduler();
      *
-     * all of the tasks are at the same, highest idle priority, so they will all get equal attention
-     * when priority was set to configMAX_PRIORITIES - [1,2,3] there was an odd WDT timeout warning.
+     * All of the tasks are at the same, highest idle priority, so they will
+     * all get equal attentiom when priority was set to
+     *   configMAX_PRIORITIES - [1,2,3]
+     * there was an odd WDT timeout warning.
      */
-    xTaskCreate(uart_rx_task, "uart_rx_task", 1024 * 2, NULL,
+#ifndef DISABLE_SSH_UART
+    xTaskCreate(uart_rx_task, "uart_rx_task",
+                UART_RX_TASK_STACK_SIZE, NULL,
                 tskIDLE_PRIORITY, NULL);
 
-    xTaskCreate(uart_tx_task, "uart_tx_task", 1024 * 2, NULL,
+    xTaskCreate(uart_tx_task, "uart_tx_task",
+                UART_TX_TASK_STACK_SIZE, NULL,
                 tskIDLE_PRIORITY, NULL);
+#endif
 
-    xTaskCreate(server_session, "server_session", 6024 * 2, NULL,
+    xTaskCreate(server_session, "server_session",
+                SERVER_SESSION_STACK_SIZE, NULL,
                 tskIDLE_PRIORITY, NULL);
 
 
@@ -373,4 +363,4 @@ void app_main(void)
 
     /* TODO this is unreachable with RTOS threads, do we ever want to shut down? */
     wolfSSH_Cleanup();
-}
+} /* app_main */

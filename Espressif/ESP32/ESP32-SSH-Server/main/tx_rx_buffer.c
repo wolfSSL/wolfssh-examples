@@ -1,6 +1,6 @@
 /* uart_hlper.c
  *
- * Copyright (C) 2014-2022 wolfSSL Inc.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
  * This file is part of wolfSSH.
  *
@@ -16,25 +16,31 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
- *
  */
 #include "tx_rx_buffer.h"
 #include "int_to_string.h"
-#include "esp_log.h"
 
-#define SSH_WELCOME_MESSAGE "\r\nWelcome to wolfSSL ESP32 SSH UART Server!\n\r\n\r"
-#define SSH_GPIO_MESSAGE "You are now connected to UART "
+#include <esp_log.h>
+#include <task.h>
+
+#define SSH_WELCOME_MESSAGE "\r\n"                                      \
+                            "Welcome to wolfSSL ESP32 SSH UART Server!" \
+                            "\n\r\n\r"
+#define SSH_GPIO_MESSAGE    "You are now connected to UART "
 #define SSH_GPIO_MESSAGE_TX "Tx GPIO "
 #define SSH_GPIO_MESSAGE_RX ", Rx GPIO "
-#define SSH_READY_MESSAGE   ".\r\n\r\nPress [Enter] to start. Ctrl-C to exit.\r\n\r\n"
+#define SSH_READY_MESSAGE   ".\r\n\r\n"                                 \
+                            "Press [Enter] to start. Ctrl-C to exit."   \
+                            "\r\n\r\n"
 
 
-static const char *TAG = "SSH Server lib";
+static const char *TAG = "tx_rx_buf";
 
 
 /* TODO define size and check when assigning */
-volatile static char  _ExternalReceiveBuffer[ExternalReceiveBufferMaxLength];
-volatile static char  _ExternalTransmitBuffer[ExternalTransmitBufferMaxLength];
+/* Shared external, non ssh buffers. typically the UART */
+volatile static char  _ExternalReceiveBuffer[EXT_RX_BUF_MAX_SZ];
+volatile static char  _ExternalTransmitBuffer[EXT_TX_BUF_MAX_SZ];
 volatile static int _ExternalReceiveBufferSz = 0;
 volatile static int _ExternalTransmitBufferSz = 0;
 
@@ -46,42 +52,70 @@ static SemaphoreHandle_t _xExternalTransmitBuffer_Semaphore = NULL;
 /*
  * initialize the external buffer (typically a UART) Receive Semaphore.
  */
-void InitReceiveSemaphore()
+int InitReceiveSemaphore(void)
 {
+    int ret = ESP_OK;
     if (_xExternalReceiveBuffer_Semaphore == NULL) {
-        ESP_LOGI(TAG, "InitReceiveSemaphore.");
+        ESP_LOGV(TAG, "Enter InitReceiveSemaphore.");
 
         /* the case of recursive mutexes is interesting, so alert */
-#ifdef configUSE_RECURSIVE_MUTEXES
+    #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG,"InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
-#endif
+        ESP_LOGI(TAG,"InitSemaphore UART Rx configUSE_RECURSIVE_MUTEXES enabled");
+    #endif
 
         _xExternalReceiveBuffer_Semaphore =  xSemaphoreCreateMutex();
+    #ifdef configUSE_RECURSIVE_MUTEXES
+        /* see semphr.h */
+        ESP_LOGV(TAG,"_xExternalReceiveBuffer_Semaphore complete");
+        #ifdef INCLUDE_uxTaskGetStackHighWaterMark
+            ESP_LOGV(TAG, "1 rx Stack HWM: %d\n",
+            uxTaskGetStackHighWaterMark(NULL));
+        #endif
+    #endif
     }
+    else {
+        ESP_LOGV(TAG, "Rx _xExternalTransmitBuffer_Semaphore already initialized");
+    }
+    return ret;
 }
 
 /*
  * initialize the external buffer (typically a UART) Transmit Semaphore.
  */
-void InitTransmitSemaphore()
+int InitTransmitSemaphore(void)
 {
+    int ret = ESP_OK;
     if (_xExternalTransmitBuffer_Semaphore == NULL) {
 
         /* the case of recursive mutexes is interesting, so alert */
+    #ifdef configUSE_RECURSIVE_MUTEXES
+        /* see semphr.h */
+        ESP_LOGI(TAG, "InitSemaphore Tx configUSE_RECURSIVE_MUTEXES enabled");
+    #endif
+    #ifdef INCLUDE_uxTaskGetStackHighWaterMark
+        ESP_LOGV(TAG, "Tx Stack HWM: %d\n", uxTaskGetStackHighWaterMark(NULL));
+    #endif
+
+        _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
+
 #ifdef configUSE_RECURSIVE_MUTEXES
         /* see semphr.h */
-        ESP_LOGI(TAG,"InitSemaphore UART configUSE_RECURSIVE_MUTEXES enabled");
-#endif
-        _xExternalTransmitBuffer_Semaphore =  xSemaphoreCreateMutex();
+        ESP_LOGV(TAG, "_xExternalReceiveBuffer_Semaphore complete");
+    #endif
     }
-
+    else {
+        ESP_LOGV(TAG, "Tx _xExternalTransmitBuffer_Semaphore"
+                      "already initialized");
+    }
+    return ret;
 }
 
 /*
  * return true if the Rx buffer is exactly 1 char long and contains charValue
  */
-bool __attribute__((optimize("O0"))) ExternalReceiveBuffer_IsChar(char charValue)
+bool __attribute__((optimize("O0")))
+ExternalReceiveBuffer_IsChar(char charValue)
 {
     bool ret = false; /* assume not a match unless proven otherwise */
     char thisChar; /* typically looking at position 0, e.g. user typing */
@@ -122,7 +156,7 @@ volatile char* __attribute__((optimize("O0"))) ExternalTransmitBuffer()
 /* RTOS-safe positional value of current receive buffer position.
  * care should be take when using the number as more chars may have arrived!
  */
-int ExternalReceiveBufferSz()
+int ExternalReceiveBufferSz(void)
 {
     int ret = 0;
 
@@ -153,7 +187,7 @@ int ExternalReceiveBufferSz()
 /* RTOS-safe positional value of current transmit buffer position.
  * care should be take when using the number as more chars may have been sent!
  */
-int ExternalTransmitBufferSz()
+int ExternalTransmitBufferSz(void)
 {
     int ret;
 
@@ -191,7 +225,7 @@ int Set_ExternalReceiveBufferSz(int n)
     int ret = 0; /* we assume success unless proven otherwise */
 
     InitReceiveSemaphore();
-    if ((n >= 0) && (n < ExternalReceiveBufferMaxLength - 1)) {
+    if ((n >= 0) && (n < EXT_RX_BUF_MAX_SZ - 1)) {
         /* only assign valid buffer sizes */
         if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
             (TickType_t) 10) == pdTRUE) {
@@ -231,7 +265,7 @@ int Set_ExternalTransmitBufferSz(int n)
     /* we look at ByteExternalTransmitBufferSz + 1
      * since we also append our own zero string termination
      */
-    if ( (n < 0) || (n > ExternalTransmitBufferMaxLength + 1) ) {
+    if ( (n < 0) || (n > EXT_TX_BUF_MAX_SZ + 1) ) {
         /* the new buffer size length must be between zero and maximum length! */
         ret = 1;
     }
@@ -259,13 +293,13 @@ int Set_ExternalTransmitBufferSz(int n)
     return ret;
 }
 
-
+/* Set the length of the external (typiclly UART) Rx buffer */
 int Set_ExternalReceiveBuffer(byte *FromData, int sz)
 {
-    /* TODO this block has not yet been tested */
-    int ret = 0; /* we assume success unless proven otherwise */
+    /* TODO this block has not yet been fully tested */
+    int ret = ESP_OK; /* we assume success unless proven otherwise */
 
-    if ( (sz < 0) || (sz > ExternalReceiveBufferMaxLength) ) {
+    if ( (sz < 0) || (sz > EXT_RX_BUF_MAX_SZ) ) {
         /* we'll only do a copy for valid sizes, otherwise return an error */
         ret = 1;
     }
@@ -274,25 +308,28 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz)
         if (xSemaphoreTake(_xExternalReceiveBuffer_Semaphore,
             (TickType_t) 10) == pdTRUE) {
 
-            /* the entire thread-safety wrapper is for this code statement.
-             * in a multi-threaded environment, a different thread may be reading
-             * or writing from the data. we need to ensure it is static at the
-             * time of copy.
+            /* The entire thread-safety wrapper is for this code statement.
+             * in a multi-threaded environment, a different thread may be
+             * reading or writing from the data. We need to ensure it is
+             * static at the time of copy.
              */
             {
-                memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
-                       FromData,
-                       sz
-                      );
+                memcpy(
+                      (byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
+                      FromData,
+                      sz);
 
                 _ExternalReceiveBufferSz = sz;
-            }
+            } /* thread safe */
 
             xSemaphoreGive(_xExternalReceiveBuffer_Semaphore);
         }
         else {
             /* we could not get the semaphore to update the value!
-             * TODO how to handle this? */
+             * TODO how to handle this? Will this ever occur?
+             * If so, adjust wait time, above. */
+            ESP_LOGW(TAG, "Warning: Set_ExternalReceiveBuffer failed to "
+                          "take semaphore. Consisder wait time adjustment." );
             ret = 1;
         }
     }
@@ -301,9 +338,9 @@ int Set_ExternalReceiveBuffer(byte *FromData, int sz)
 }
 
 /*
- * thread safe populate ToData with the contents of _ExternalTransmitBuffer
+ * Thread safe populate ToData with the contents of _ExternalTransmitBuffer
  * returns the size of the data, negative values are errors.
- **/
+ */
 int Get_ExternalTransmitBuffer(byte **ToData)
 {
     int ret = 0;
@@ -337,26 +374,31 @@ int Get_ExternalTransmitBuffer(byte **ToData)
         xSemaphoreGive(_xExternalTransmitBuffer_Semaphore);
     }
     else {
-        /* we could not get the semaphore to update the value! TODO how to handle this? */
+        /* We could not get the semaphore to update the value!
+         * TODO how to handle this? Wait time adjust? */
         ret = -1;
-        ESP_LOGE(TAG,"ERROR: Get_ExternalTransmitBuffer SemaphoreTake _xExternalTransmitBuffer_Semaphore failed.");
+        ESP_LOGE(TAG,"ERROR: Get_ExternalTransmitBuffer SemaphoreTake "
+                     "_xExternalTransmitBuffer_Semaphore failed.");
     }
 
     return ret;
 }
 
 
-
+/*
+ * Thread safe populate FromData with the contents of _ExternalTransmitBuffer
+ * returns the size of the data, negative values are errors.
+ */
 int Set_ExternalTransmitBuffer(byte *FromData, int sz)
 {
-    int ret = 0; /* we assume success unless proven otherwise */
+    int ret = 0;
 
     /* here we need to call the thread-safe ExternalTransmitBufferSz() */
     int thisNewSize = sz + ExternalTransmitBufferSz();
 
-    if ( (sz < 0) || (thisNewSize > ExternalTransmitBufferMaxLength) ) {
+    if ( (sz < 0) || (thisNewSize > EXT_TX_BUF_MAX_SZ) ) {
         /* we'll only do a copy for valid sizes, otherwise return an error */
-        ret = 1;
+        ret = -1;
     }
     else {
         InitTransmitSemaphore();
@@ -384,12 +426,13 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz)
                     sz);
 
                 _ExternalTransmitBufferSz = thisNewSize;
+                ret = thisNewSize;
             }
             xSemaphoreGive(_xExternalTransmitBuffer_Semaphore);
         }
         else {
             /* we could not get the semaphore to update the value! TODO how to handle this? */
-            ret = 1;
+            ret = -1;
         }
     }
 
@@ -404,7 +447,8 @@ int Set_ExternalTransmitBuffer(byte *FromData, int sz)
 int  init_tx_rx_buffer(byte TxPin, byte RxPin)
 {
     int ret = 0;
-    char numStr[2]; /* this will hold 2-digit GPIO numbers converted to a string */
+
+    char numStr[3] = { ' ', ' ', ' ' }; /* printable 2-digit GPIO numbers */
 
     /* these inits need to be called only once,
      * but can be repeatedly called as needed */
@@ -438,7 +482,8 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin)
      * it is NOT a duplicate. This one compares TxPin,
      * the next one compares RxPin */
     if (TxPin <= 0x40) {
-        int_to_dec(numStr, TxPin);
+        int_to_dec((char*)&numStr, TxPin);
+        numStr[2] = 0;
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
     }
     else {
@@ -454,21 +499,23 @@ int  init_tx_rx_buffer(byte TxPin, byte RxPin)
     /* the number of the Rx pin, converted to a string */
     if (RxPin <= 0x40)
     {
-        int_to_dec(numStr, RxPin);
+        int_to_dec((char*)&numStr, RxPin);
+        numStr[2] = 0;
         Set_ExternalTransmitBuffer((byte*)&numStr, sizeof(numStr));
     }
     else {
         ESP_LOGE(TAG,"ERROR: bad value for RxPin");
         ret = 1;
     }
-
+#ifdef INCLUDE_uxTaskGetStackHighWaterMark
+    ESP_LOGI(TAG, "8 Stack HWM: %d\n", uxTaskGetStackHighWaterMark(NULL));
+#endif
     /* typically "Press [Enter] to start. Ctrl-C to exit" */
     Set_ExternalTransmitBuffer((byte*)SSH_READY_MESSAGE,
                                sizeof(SSH_READY_MESSAGE)
                               );
-
+#ifdef INCLUDE_uxTaskGetStackHighWaterMark
+    ESP_LOGI(TAG, "9 Stack HWM: %d\n", uxTaskGetStackHighWaterMark(NULL));
+#endif
     return ret;
 }
-
-
-

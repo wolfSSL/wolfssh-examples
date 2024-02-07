@@ -1,4 +1,4 @@
-/* uart_hlper.c
+/* tx_rx_buffer.h
  *
  * Copyright (C) 2014-2024 wolfSSL Inc.
  *
@@ -17,20 +17,30 @@
  * You should have received a copy of the GNU General Public License
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
-#pragma once
+#ifndef _TX_RX_BUFFER_H_
+#define _TX_RX_BUFFER_H_
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_system.h"
-#include "esp_log.h"
-#include "driver/uart.h"
-#include "string.h"
-#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
-static const int RX_BUF_SIZE = 1024; /* TODO remove duplicate definition */
+#include <string.h>
 
-void uart_send_welcome();
-void uart_tx_task(void *arg);
-void uart_rx_task(void *arg);
+/* TODO do these really need to be so big? probably not */
+/* Sizes for shared transmit and receive buffers, for
+ * both external (typically UART) and SSH data streams */
+#define EXT_RX_BUF_MAX_SZ 2048
+#define EXT_TX_BUF_MAX_SZ 2048
 
-int sendData(const char* logName, const char* data);
+typedef uint8_t byte;
+
+int init_tx_rx_buffer(byte TxPin, byte RxPin);
+
+int Get_ExternalTransmitBuffer(byte **ToData);
+
+int Set_ExternalTransmitBuffer(byte *FromData, int sz);
+
+int Set_ExternalReceiveBuffer(byte *FromData, int sz);
+
+bool ExternalReceiveBuffer_IsChar(char charValue);
+
+#endif /* _TX_RX_BUFFER_H_ */
