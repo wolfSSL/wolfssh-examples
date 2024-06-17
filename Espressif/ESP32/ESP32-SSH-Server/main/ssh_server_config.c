@@ -19,10 +19,19 @@
  */
 #include "ssh_server_config.h"
 
+const char* TAG = "ssh config";
+
 int ssh_server_config_init(void)
 {
     int ret = ESP_OK;
+#ifdef DEBUG_WOLFSSH
     ESP_LOGI("init", "ssh_server_config_init");
+#endif
+
+    if ((SSH_SERVER_ECHO < 0) || (SSH_SERVER_ECHO > 1)) {
+        ESP_LOGE(TAG, "Not a valid value for DISABLE_SSH_UART: %d",
+                       SSH_SERVER_ECHO);
+    }
 
     /* TODO make public the esp_util show_macro() */
 /*  show_macro("NO_ESPIDF_DEFAULT",         STR_IFNDEF(NO_ESPIDF_DEFAULT)); */

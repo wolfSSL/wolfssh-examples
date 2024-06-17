@@ -84,6 +84,8 @@ static const char *TAG = "wifi_connect";
  */
 static volatile bool WiFiEthernetReady = 0;
 
+esp_netif_ip_info_t my_ip;
+
 #if ESP_IDF_VERSION_MAJOR < 4
     #if defined(CONFIG_IDF_TARGET_ESP8266)
         /* TODO */
@@ -152,7 +154,8 @@ static volatile bool WiFiEthernetReady = 0;
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 
-/* The event group allows multiple bits for each event, but we only care about two events:
+/* The event group allows multiple bits for each event,
+ * but we only care about two events:
  * - we are connected to the AP with an IP
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
@@ -186,6 +189,8 @@ static void event_handler(void* arg,
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         event = (ip_event_got_ip_t*) event_data;
+        my_ip = event->ip_info;
+
         wifi_show_ip();
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
@@ -225,8 +230,8 @@ int wifi_init_sta(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
+            .ssid = CONFIG_EXAMPLE_WIFI_SSID,
+            .password = CONFIG_EXAMPLE_WIFI_PASSWORD,
             /* Authmode threshold resets to WPA2 as default if password matches
              * WPA2 standards (pasword len => 8). If you want to connect the
              * device to deprecated WEP/WPA networks, Please set the threshold
@@ -268,7 +273,8 @@ int wifi_init_sta(void)
     /* xEventGroupWaitBits() returns the bits before the call returned,
      * hence we can test which event actually happened. */
     #if defined(SHOW_SSID_AND_PASSWORD)
-        ESP_LOGW(TAG, "Undefine SHOW_SSID_AND_PASSWORD to not show SSID/password");
+        ESP_LOGW(TAG, "Undefine SHOW_SSID_AND_PASSWORD "
+                      "to not show SSID/password");
         if (bits & WIFI_CONNECTED_BIT) {
             ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
                            EXAMPLE_ESP_WIFI_SSID,
@@ -302,9 +308,29 @@ int wifi_init_sta(void)
 
 int wifi_show_ip(void)
 {
-    /* TODO Causes panic:
-     * ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip)); */
-    return ESP_OK;
+    int ret;
+    if (event == NULL) {
+        ret = ESP_FAIL;
+    }
+    else {
+        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        ret = ESP_OK;
+    }
+    return ret;
+}
+
+int wifi_show_listening_ip(int port)
+{
+    int ret;
+    if (event == NULL) {
+        ret = ESP_FAIL;
+    }
+    else {
+        ESP_LOGI(TAG, "Listening on port %d address: " IPSTR,
+                       port , IP2STR(&my_ip.ip));
+        ret = ESP_OK;
+    }
+    return ret;
 }
 #endif
 
@@ -343,7 +369,8 @@ static void wifi_ap_event_handler(void* arg,
             event->aid);
     }
 
-    /* when acting as AP, we're always ready, as we're not awaiting connection or IP addy */
+    /* When acting as AP, we're always ready, as we're not awaiting connection
+     * or IP addy. */
     WiFiEthernetReady = 1;
 }
 

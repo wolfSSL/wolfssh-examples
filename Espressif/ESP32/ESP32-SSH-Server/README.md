@@ -28,6 +28,27 @@ can help to get started:
 
 See also the [core wolfSSL examples for Espressif](https://github.com/wolfSSL/wolfssl/tree/master/IDE/Espressif).
 
+Here are the steps for a typical build:
+
+```bash
+# fetch source
+git clone https://github.com/wolfSSL/wolfssh-examples.git
+
+# setup environment
+export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.2
+. $WRK_IDF_PATH/export.sh
+cd Espressif/ESP32/ESP32-SSH-Server
+
+# Configure
+idf.py set-target esp32
+
+# Set WiFi SSID and password:
+idf.py menuconfig
+
+# Program the device and observe output.
+idf.py -p /dev/ttyS82 -b 115200 build flash monitor -b 115200
+```
+
 ## Requirements
 
 The [wolfSSL library](https://github.com/wolfssl/wolfssl) is needed for this wolfSSH example. Installation
@@ -177,14 +198,17 @@ Note the `IDF_PATH` may alrteady be set if calling from the installed shortcut
 (typically in `C:\Users\%USERNAME%\.espressif\idf_cmd_init.bat`)
 
 ```batch
+SET WRK_IDF_PATH=C:\SysGCC\esp32\esp-idf\v5.2
 SET IDF_PATH=C:\Users\%username%\Desktop\esp-idf
 SET WORKSPACE=C:\workspace
 ```
 WSL
 
 ```bash
-export IDF_PATH=/mnt/c/Users/$USER/Desktop/esp-idf
+export WRK_IDF_PATH=/mnt/c/Users/$USER/Desktop/esp-idf/v5.2
+export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.2
 export WORKSPACE=/mnt/c/workspace
+. $WRK_IDF_PATH/export.sh
 ```
 
 Linux

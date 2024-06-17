@@ -69,12 +69,14 @@
     ** If you'd rather not, just change the below entries to strings with
     ** the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
     */
+    #undef EXAMPLE_ESP_WIFI_SSID
     #ifdef CONFIG_ESP_WIFI_SSID
         #define EXAMPLE_ESP_WIFI_SSID CONFIG_ESP_WIFI_SSID
     #else
         #define EXAMPLE_ESP_WIFI_SSID "MYSSID_WIFI_CONNECT"
     #endif
 
+    #undef EXAMPLE_ESP_WIFI_PASS
     #ifdef CONFIG_ESP_WIFI_PASSWORD
         #define EXAMPLE_ESP_WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
     #else
@@ -90,6 +92,8 @@ void wifi_init_softap(void);
 int wifi_init_sta(void);
 
 int wifi_show_ip(void);
+
+int wifi_show_listening_ip(int port);
 
 bool wifi_ready(void);
 
