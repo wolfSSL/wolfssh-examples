@@ -31,16 +31,34 @@ See also the [core wolfSSL examples for Espressif](https://github.com/wolfSSL/wo
 Here are the steps for a typical build:
 
 ```bash
-# fetch source
+# Fetch source
 git clone https://github.com/wolfSSL/wolfssh-examples.git
+cd wolfssh-examples
 
-# setup environment
+# Setup environment
 export WRK_IDF_PATH=/mnt/c/SysGCC/esp32/esp-idf/v5.2
 . $WRK_IDF_PATH/export.sh
+
+# Change directory to the example
 cd Espressif/ESP32/ESP32-SSH-Server
 
-# Configure
+# List possible targets
+idf.py 
+
+# Configure a target, in this case the basic ESP32
 idf.py set-target esp32
+
+# Set locations for wolfSSL and wolfSSH
+# This is only needed if there are not clones in parallel level depths, for example:
+#   /mnt/c/workspace/wolfssh-examples
+#   /mnt/c/workspace/wolfssl
+#   /mnt/c/workspace/wolfssh
+# cmake will also search for "-master" and "-$USER" suffix names.
+#
+# Here, we assume wolfssh-examples was cloned to someplace else, such as /mnt/c/test/wolfssh-examples
+#
+export WOLFSSL_ROOT=/mnt/c/workspace/wolfssl-master
+export WOLFSSH_ROOT=/mnt/c/workspace/wolfssh-master
 
 # Set WiFi SSID and password:
 idf.py menuconfig
@@ -53,6 +71,10 @@ idf.py -p /dev/ttyS82 -b 115200 build flash monitor -b 115200
 
 The [wolfSSL library](https://github.com/wolfssl/wolfssl) is needed for this wolfSSH example. Installation
 can be either as a local repository or by using the [wolfSSL Managed Component](https://components.espressif.com/components/wolfssl/wolfssl).
+
+Beware of the [user_settings.h](https://github.com/wolfSSL/wolfssh-examples/tree/main/Espressif/ESP32/ESP32-SSH-Server/components/wolfssl/include).
+There should be exactly one copy, located in the `./components/wolfssl/include` directory. Any other source of wolfSSL
+may not have the proper wolfSSH settings.
 
 The Espressif development environment is needed: [ESP-IDF Version 4.x](https://docs.espressif.com/projects/esp-idf/en/v4.4.1/esp32/index.html)
 or [ESP-IDF Version 5.x](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/).
@@ -112,7 +134,7 @@ set(WOLFSSH_ROOT "C:/workspace/wolfssh")
 
 ## Linux Quick Start - Installation of local files
 
-This method, although operational, is no longer recommended. See above for using the in-place
+This method, although operational, *is no longer recommended*. See above for using the in-place
 wolfSSL and wolfSSH source that can be used without copying to the local project.
 
 If you still want to have a local copy of wolfSSL _in_ you project, follow these steps:
@@ -159,11 +181,10 @@ idf.py -p /dev/ttyUSB0 flash
 config files needed:
 
 ```
-components/wolfssh/include/user_settings.h
 components/wolfssl/include/user_settings.h
-components/wolfssl/wolfssl/options.h
 ```
 
+Ensure there are no other `user_settings.h` files in any other project directories.
 
 ## Building
 
@@ -637,6 +658,28 @@ Only one connection is allowed at the time. There may be a delay when an existin
 
 
 ## Troubleshooting
+
+Here are some common error messages and possible solutions:
+
+### Configuring incomplete, errors occurred! System.Exception: CMake exited with code 1 
+
+This is a common error when changing target boards. Note the _does not match currently selected IDF_TARGET_ to the right:
+
+```
+-- Configuring incomplete, errors occurred!
+CMake Error at C:/SysGCC/esp32-13.2/esp-idf/v5.2/tools/cmake/targets.cmake:108 (message):
+   Target 'esp32c3' in sdkconfig 'C:/workspace/wolfssh-examples-gojimmypi-pr/Espressif/ESP32/ESP32-SSH-Server/sdkconfig' does not match currently selected IDF_TARGET 'esp32'. To change the target, clear the build directory and sdkconfig file, and build the project again.
+Call Stack (most recent call first):
+  C:/SysGCC/esp32-13.2/esp-idf/v5.2/tools/cmake/project.cmake:24 (__target_init)
+  CMakeLists.txt:194 (include)
+
+
+System.Exception: CMake exited with code 1
+   at s24.e(c a, Object b)
+```
+
+Often the best way to resolve this is to completely remove the `build` directory.
+
 
 ### termios.error: (5, 'Input/output error')
 
