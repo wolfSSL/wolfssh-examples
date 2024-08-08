@@ -46,7 +46,8 @@
 #define UART_TX_TASK_STACK_SIZE   ( 4 * 1024)
 
 #ifdef WOLFSSH_TEST_THREADING
-    #define SERVER_SESSION_STACK_SIZE (4 * 1024)
+    /* 4KB Observed to be too small; exact minimum not determined. */
+    #define SERVER_SESSION_STACK_SIZE (5 * 1024)
 
     /* SSH Server will use pthreads task */
     #ifdef CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT

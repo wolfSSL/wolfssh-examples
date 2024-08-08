@@ -40,7 +40,8 @@
     /* TODO Consider non ESP-IDF environments */
 #endif
 
-/* ESP-IDF uses a 64-bit signed integer to represent time_t starting from release v5.0
+/* ESP-IDF uses a 64-bit signed integer to represent time_t starting from
+ * release v5.0
  * See: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/system_time.html#year-2036-and-2038-overflow-issues
  */
 
@@ -53,7 +54,8 @@
      * PDT represents Pacific Daylight Time.
      * M3.2.0 indicates that Daylight Saving Time (DST) starts on the
      *   second (2) Sunday (0) of March (3).
-     * M11.1.0 indicates that DST ends on the first (1) Sunday (0) of November (11)
+     * M11.1.0 indicates that DST ends on
+     *   the first (1) Sunday (0) of November (11)
      */
     #define TIME_ZONE "PST+8PDT,M3.2.0,M11.1.0"
 #endif /* not defined: TIME_ZONE, so we are setting our own */
@@ -215,7 +217,8 @@ int set_time_from_string(const char* time_buffer)
             this_timeinfo.tm_hour = hour;
             this_timeinfo.tm_min = minute;
             this_timeinfo.tm_sec = second;
-            this_timeinfo.tm_year = year - 1900; /* Number of years since 1900 */
+            this_timeinfo.tm_year = year - 1900; /* Number of years
+                                                  * since 1900 */
 
             interim_time = mktime(&this_timeinfo);
             now = (struct timeval){ .tv_sec = interim_time };
@@ -223,7 +226,8 @@ int set_time_from_string(const char* time_buffer)
             ESP_LOGI(TAG, "Time updated to %s", time_buffer);
         }
         else {
-            ESP_LOGE(TAG, "Failed to convert \"%s\" to a tm date.", time_buffer);
+            ESP_LOGE(TAG, "Failed to convert \"%s\" to a tm date.",
+                           time_buffer);
             ESP_LOGI(TAG, "Trying fixed date that was hard-coded.");
             set_fixed_default_time();
             ret = ESP_FAIL;
@@ -250,7 +254,8 @@ int set_time(void)
                                        ESP_SNTP_SERVER_LIST(ntpServerList[0])
                                    );
     #else
-        esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(ntpServerList[0]);
+        esp_sntp_config_t config =
+            ESP_NETIF_SNTP_DEFAULT_CONFIG(ntpServerList[0]);
     #endif /* CONFIG_LWIP_SNTP_MAX_SERVERS > 1 */
 #endif /* HAS_ESP_NETIF_SNTP */
 
@@ -262,8 +267,9 @@ int set_time(void)
 
 #ifdef LIBWOLFSSL_VERSION_GIT_HASH_DATE
     /* initialy set a default approximate time from recent git commit */
-    ESP_LOGI(TAG, "Found git hash date, attempting to set system date.");
-    set_time_from_string(LIBWOLFSSL_VERSION_GIT_HASH_DATE);
+    ESP_LOGI(TAG, "Found git hash date, attempting to set system date: %s",
+                   LIBWOLFSSL_VERSION_GIT_HASH_DATE);
+    set_time_from_string(LIBWOLFSSL_VERSION_GIT_HASH_DATE"\0");
     esp_show_current_datetime();
 
     ret = -4;
@@ -367,11 +373,12 @@ int set_time_wait_for_ntp(void)
 
     if (ret == ESP_OK) {
         ESP_LOGI(TAG, "Successfuly set time via NTP servers.");
-        }
+    }
     else {
         ESP_LOGW(TAG, "Warning: Failed to set time with NTP: "
                       "result = 0x%0x: %s",
-                       ret, esp_err_to_name(ret));
+                      ret,
+                      esp_err_to_name(ret));
     }
     return ret;
 }

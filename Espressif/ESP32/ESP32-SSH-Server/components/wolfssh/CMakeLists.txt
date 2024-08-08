@@ -26,7 +26,7 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_USER_SETTINGS")
 
-set(VERBOSE_COMPONENT_MESSAGES 1)
+set(VERBOSE_COMPONENT_MESSAGES 0)
 
 # The scope of this CMAKE_C_FLAGS is just this component:
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSL_USER_SETTINGS")
@@ -105,6 +105,12 @@ else()
 endif()
 message(STATUS "THIS_USER = ${THIS_USER}")
 
+if( "$ENV{IDF_PATH}" STREQUAL "" )
+    message(FATAL_ERROR "IDF_PATH Environment variable not set!")
+else()
+    string(REPLACE "\\" "/" THIS_IDF_PATH "$ENV{IDF_PATH}")
+endif()
+
 # Attention!
 #
 # When editing component CMake files, consider the following :
@@ -126,13 +132,23 @@ message(STATUS "THIS_USER = ${THIS_USER}")
 #
 #       idf.py add-dependency "wolfssl/wolfssh^1.4.15-stable"
 #
-# Fully Managaged Componenets. This is the typical example as created from the Component Registry:
+# Fully Managed Components. This is the typical example as created from the Component Registry:
 #    For example:
 #
 #       idf.py create-project-from-example "wolfssl/wolfssh^1.4.15-stable:wolfssh_server"
 #
 # In all cases, keep in mind that components other than wolfssl will depend on the wolfssl component.
 #
+message(STATUS "CMAKE_CURRENT_LIST_DIR = ${CMAKE_CURRENT_LIST_DIR}")
+
+get_filename_component(THIS_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
+message(STATUS "THIS_DIR = ${THIS_DIR}")
+
+# The root of the project is two directories up from here. (we are typically in [project name]components/mywolfssh)
+get_filename_component(PROJECT_ROOT "${THIS_DIR}" DIRECTORY)      # Up one directory from here is "components"
+get_filename_component(PROJECT_ROOT "${PROJECT_ROOT}" DIRECTORY)  # up one more directory should be the root of our project
+message(STATUS "PROJECT_ROOT = ${PROJECT_ROOT}")
+
 
 # Component naming is only adjusted when using Managed Components, and only when using staging site.
 if( "$ENV{IDF_COMPONENT_REGISTRY_URL}" STREQUAL "https://components-staging.espressif.com" )
@@ -166,20 +182,20 @@ set(COMPONENT_REQUIRES lwip "${WOLFSSL_COMPONENT_NAME}")
 #  parameter: DIRECTORY_PARAMETER = the directory to test
 #  output:    RESULT = contains contents of DIRECTORY_PARAMETER for wolfssh directory, otherwise blank.
 function(IS_WOLFSSH_SOURCE DIRECTORY_PARAMETER RESULT)
-    if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh/ssh.h")
-        if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh")
-            message(STATUS "1")
+    set(THIS_RESULT "")
+    if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh/")
+        message(STATUS "Found ${DIRECTORY_PARAMETER}/wolfssh/")
+        if (EXISTS "${DIRECTORY_PARAMETER}/wolfssh/ssh.h")
+            message(STATUS "Found ${DIRECTORY_PARAMETER}/wolfssh/ssh.h")
+            if (EXISTS "${DIRECTORY_PARAMETER}/src/")
+                if (EXISTS "${DIRECTORY_PARAMETER}/src/")
+                    message(STATUS "Found wolfssh in ${DIRECTORY_PARAMETER}")
+                    set(THIS_RESULT "${DIRECTORY_PARAMETER}")
+                endif()
+            endif()
         endif()
-        if (EXISTS "${DIRECTORY_PARAMETER}")
-            message(STATUS "2")
-        endif()
-        if (EXISTS "${DIRECTORY_PARAMETER}/src")
-            message(STATUS "3")
-        endif()
-        set(${RESULT} "${DIRECTORY_PARAMETER}" PARENT_SCOPE)
-    else()
-        set(${RESULT} "" PARENT_SCOPE)
     endif()
+    set(${RESULT} "${THIS_RESULT}" PARENT_SCOPE)
 endfunction()
 
 # function: FIND_WOLFSSH_DIRECTORY
@@ -214,7 +230,7 @@ function(FIND_WOLFSSH_DIRECTORY OUTPUT_FOUND_WOLFSSH_DIRECTORY)
         # There's a non-blank WOLFSSH_ROOT environment variable. Is it a valid wolfssh directory?
         get_filename_component(CURRENT_SEARCH_DIR "$ENV{WOLFSSH_ROOT}" ABSOLUTE)
         IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR}" FOUND_WOLFSSH)
-        if( FOUND_WOLFSSH )
+        if("${FOUND_WOLFSSH}")
             message(STATUS "Found WOLFSSH_ROOT via Environment Variable:")
         else()
             message(FATAL_ERROR "WOLFSSH_ROOT Environment Variable defined, but path not found: $ENV{WOLFSSH_ROOT}")
@@ -259,7 +275,7 @@ function(FIND_WOLFSSH_DIRECTORY OUTPUT_FOUND_WOLFSSH_DIRECTORY)
         IS_WOLFSSH_SOURCE("${CURRENT_SEARCH_DIR_ALT}" FOUND_WOLFSSH )
         if ( FOUND_WOLFSSH )
             message(STATUS "Found wolfssh in CURRENT_SEARCH_DIR = ${CURRENT_SEARCH_DIR}")
-            set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} ${CURRENT_SEARCH_DIR} PARENT_SCOPE)
+            set(${OUTPUT_FOUND_WOLFSSH_DIRECTORY} ${CURRENT_SEARCH_DIR_ALT} PARENT_SCOPE)
             return()
         endif()
 
@@ -363,6 +379,8 @@ else()
         message(STATUS "")
         message(STATUS "**************************************************************************************")
         message(STATUS "")
+
+        message(STATUS "Please use wolfSSL in either local project or Espressif components, but not both.")
 
         # Optional: if you change the above FATAL_ERROR to STATUS you can warn at runtime with this macro definition:
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWOLFSSH_MULTI_INSTALL_WARNING")
@@ -531,13 +549,13 @@ else()
         get_cmake_property(_variableNames VARIABLES)
         list (SORT _variableNames)
         message(STATUS "")
-        message(STATUS "ALL VARIABLES BEGIN")
+        message(STATUS "ALL VARIABLES BEGIN (wolfssh)")
         message(STATUS "")
         foreach (_variableName ${_variableNames})
             message(STATUS "${_variableName}=${${_variableName}}")
         endforeach()
         message(STATUS "")
-        message(STATUS "ALL VARIABLES END")
+        message(STATUS "ALL VARIABLES END (wolfssh)")
         message(STATUS "")
     endif()
 

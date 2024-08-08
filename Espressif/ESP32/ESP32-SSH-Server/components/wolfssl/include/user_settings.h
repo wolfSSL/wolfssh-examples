@@ -1,24 +1,37 @@
 /* user_settings.h (this is a special file specifically for ESP SSH to UART)
  *
- * Copyright (C) 2006-2024 wolfSSL Inc.
  *
- * This file is part of wolfSSL.
+ * Copyright (C) 2014-2024 wolfSSL Inc.
  *
- * wolfSSL is free software; you can redistribute it and/or modify
+ * This file is part of wolfSSH.
+ *
+ * wolfSSH is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
  *
- * wolfSSL is distributed in the hope that it will be useful,
+ * wolfSSH is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
+ * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* NOTICE
+ *
+ * This is a wolfSSL user settings file for Espressif ESP32-[n] and ESP8266.
+ *
+ * This file should *NOT* be explicitly included in any source files.
+ *
+ * Please instead include this settings.h file which will reference this file:
+ *
+ *            #include <wolfssl/wolfcrypt/settings.h>
+ *
+ * Thank you for using wolfSSL.
+ *
+ */
 #include "sdkconfig.h" /* essential to chip set detection */
 
 #undef WOLFSSL_ESPIDF
@@ -144,8 +157,11 @@
 /* when you want to use SHA224 */
 /* #define WOLFSSL_SHA224      */
 
-/* when you want to use SHA384 */
+/* when you want to use SHA384, which is disabled by default */
 /* #define WOLFSSL_SHA384 */
+
+/* when you want to use SHA512. which is disabled by default */
+/* #define WOLFSSL_SHA512 */
 
 /* #define WOLFSSL_SHA3 */
 
@@ -191,15 +207,15 @@
 
         #else
             /* default ecdsa-sha2-nistp256 needs no special settings. */
-
-            /* TODO: SHA256 HW enabled causes wolfSSH project error:
-             *   "signature from server's host key is invalid
-             *
-             * Software SHA256 works.
-             */
             #ifndef WOLFSSL_FULL_WOLFSSH_SUPPORT
-                /* wolfSSL 5.6.6 SHA256 HW not supported with wolfSSH */
-                #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA256
+                #include <version.h>
+                #ifdef LIBWOLFSSL_VERSION_HEX
+                    #if LIBWOLFSSL_VERSION_HEX < 0x05007000
+                        /* wolfSSL 5.6.6 SHA256 HW not supported with wolfSSH
+                         * prior to 5.7.0, so disable it: */
+                       #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA256
+                    #endif
+                #endif
             #endif
         #endif
     #else
@@ -231,6 +247,8 @@
     #error "Either RSA or ECC must be enabled"
 #endif
 
+/* Optional OPENSSL compatibility */
+/* #define OPENSSL_EXTRA */
 
 /* when you want to use pkcs7 */
 /* #define HAVE_PKCS7 */
@@ -259,7 +277,7 @@
 /* #define XTIME time */
 
 /* adjust wait-timeout count if you see timeout in RSA HW acceleration */
-#define ESP_RSA_TIMEOUT_CNT    0x249F00
+#define ESP_RSA_TIMEOUT_CNT    0x349F00
 
 
 /* USE_FAST_MATH is default */
@@ -279,6 +297,7 @@
 
 /* The ESP32 has some detailed statup information available:*/
 #define HAVE_VERSION_EXTENDED_INFO
+/* #define HAVE_WC_INTROSPECTION */
 
 /* optional SM4 Ciphers. See https://github.com/wolfSSL/wolfsm */
 /*
@@ -348,8 +367,16 @@
     /* wolfSSL HW Acceleration supported on ESP32. Uncomment to disable: */
     /*  #define NO_ESP32_CRYPT                 */
     /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH    */
-    /*  #define NO_WOLFSSL_ESP32_CRYPT_AES     */
-    /*  #define NO_WOLFSSL_ESP32_CRYPT_RSA_PRI */
+
+    /*****   Optionally turn off individual SHA:   *****/
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA        */
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA224     */
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA256     */
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA384     */
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_HASH_SHA512     */
+
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_AES             */
+    /*  #define NO_WOLFSSL_ESP32_CRYPT_RSA_PRI         */
     /*  #define NO_WOLFSSL_ESP32_CRYPT_RSA_PRI_MP_MUL  */
     /*  #define NO_WOLFSSL_ESP32_CRYPT_RSA_PRI_MULMOD  */
     /*  #define NO_WOLFSSL_ESP32_CRYPT_RSA_PRI_EXPTMOD */

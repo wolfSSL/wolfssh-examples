@@ -18,19 +18,12 @@
  * along with wolfSSH.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ssh_server_config.h"
-#include "ssh_server.h"
-#include "tx_rx_buffer.h"
-
-
-#include <esp_task_wdt.h>
-
 /* wolfSSL */
+/* Important: make sure settings.h appears before any other wolfSSL headers */
+#include <wolfssl/wolfcrypt/settings.h>
 #ifndef WOLFSSL_USER_SETTINGS
     #error "WOLFSSL_USER_SETTINGS should have been defined in project cmake"
 #endif
-/* Important: make sure settings.h appears before any other wolfSSL headers */
-#include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/port/Espressif/esp32-crypt.h>
 #include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/wolfcrypt/logging.h>
@@ -49,6 +42,15 @@
 /* wolfSSH */
 #include <wolfssh/ssh.h>
 #include <wolfssh/test.h>
+
+/* Espressif */
+#include <esp_log.h>
+
+/* Project */
+#include "ssh_server_config.h"
+#include "ssh_server.h"
+#include "tx_rx_buffer.h"
+
 
 /* note our actual buffer is used by RTOS threads, and eventually interrupts */
 static volatile byte sshStreamTransmitBufferArray[EXT_TX_BUF_MAX_SZ];
@@ -195,13 +197,13 @@ static int NonBlockSSH_accept(WOLFSSH* ssh)
         if (max_wait < 0) {
             error = WS_FATAL_ERROR;
         }
-/*
+#if (0)
+        /* Some optional debugging verbosity: */
         if (error == WS_WANT_READ)
             ESP_LOGE(TAG,"... client would read block\n");
         else if (error == WS_WANT_WRITE)
             ESP_LOGE(TAG,"... client would write block\n");
-*/
-
+#endif
         select_ret = tcp_select(sockfd, 1);
         if (select_ret == WS_SELECT_RECV_READY  ||
             select_ret == WS_SELECT_ERROR_READY ||
@@ -278,7 +280,8 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
          * a valid SSH connection open
          */
         do {
-            /* int show_msg = 0; TODO optionally disable echo of text to USB port */
+            /* int show_msg = 0;
+             * TODO optionally disable echo of text to USB port */
             int has_err = 0;
             this_rx_buf = (byte*)&sshStreamReceiveBufferArray;
             vTaskDelay(10);
@@ -293,11 +296,13 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                     if (retval != 0) {
                         /* if we can't even call getsockopt, give up */
                         stop = 1;
-                        ESP_LOGE(TAG,"ERROR: getsockopt unable to query socket fd!");
+                        ESP_LOGE(TAG,"ERROR: getsockopt "
+                                     "unable to query socket fd!");
                     }
                     if (error != 0) {
                         /* socket has a non zero error status */
-                        ESP_LOGE(TAG,"ERROR: getsockopt returned error socket fd!");
+                        ESP_LOGE(TAG,"ERROR: getsockopt "
+                                     "returned error socket fd!");
                         stop = 1;
                     }
 
@@ -328,8 +333,18 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                         }
                     }
                     else {
-                        ESP_LOGI(TAG,"Received %d bytes from client.", rxSz);
+#if defined(DISABLE_SSH_UART)
+                        this_rx_buf[rxSz] = 0;
+                        rxSz = 0;
+                        /* printf is not ideal for embedded, but here for demo
+                         * output only. setvbuf should have been set to flush
+                         * output immediately:*/
+                        printf("%s", this_rx_buf);
+#else
+                        ESP_LOGI(TAG, "Received %d bytes from client.", rxSz);
+#endif
                     }
+
 
                     /* turn debugging back on */
                     #ifdef DEBUG_WOLFSSH
@@ -344,31 +359,38 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                     }
                     #endif
 
-                } while ((WOLFSSL_NONBLOCK == 0) /* we'll wait only when not using non-blocking socket */
+                } while ((WOLFSSL_NONBLOCK == 0) /* We'll wait only when
+                                                  * not using non-blocking
+                                                  * socket. */
                          &&
                          (rxSz == WS_WANT_READ || rxSz == WS_WANT_WRITE));
 
                 /*
-                 * if there's data in the external transmit buffer, typically from UART,
-                 * we'll send that to the SSH client.
+                 * if there's data in the external transmit buffer, typically
+                 * from UART, we'll send that to the SSH client.
                  */
                 if (ExternalTransmitBufferSz() > 0) {
                     ESP_LOGI(TAG,"Tx UART!");
 
-                    /* our actual transit buffer array is not on the local stack
-                     * to minimize RTOS requirements; we'll setup a pointer to it.
+                    /* our actual transit buffer array is not on the local
+                     * stack to minimize RTOS requirements; we'll setup a
+                     * pointer to it.
                      *
-                     * Note this is a *different* buffer from the external (UART)
-                     * which may change during RTOS threads, and future interrupt code.
+                     * Note this is a *different* buffer from the
+                     * external (UART) which may change during RTOS threads,
+                     * and future interrupt code.
                      * */
-                    byte* sshStreamTransmitBuffer = (byte*)&sshStreamTransmitBufferArray;
+                    byte* sshStreamTransmitBuffer =
+                          (byte*)(&sshStreamTransmitBufferArray);
 
                     /* We'll get a copy of the buffer and
                      * set _ExternalTransmitBufferSz to zero
                      *
                      * Note this is thread safe, getting both data and size.
                      */
-                    int thisSize = Get_ExternalTransmitBuffer(&sshStreamTransmitBuffer);
+                    int thisSize = Get_ExternalTransmitBuffer(
+                                       &sshStreamTransmitBuffer
+                                   );
 
                     if (sshStreamTransmitBuffer == NULL) {
                         /* TODO this is an error as the buffer should never
@@ -382,25 +404,28 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                                             sshStreamTransmitBuffer,
                                             thisSize);
                     }
-
-
-                }
+                } /* ExternalTransmitBufferSz() > 0 */
 
                 /*
-                 * if we received any data from the SSH client, we'll store it in the
-                 * External REceived Buffer for later sending to the UART
+                 * If we received any data from the SSH client,
+                 * we'll store it in the External Received Buffer
+                 * for later sending to the UART.
                  *
                  * Reminder negative values for WS_WANT_READ || WS_WANT_WRITE
                  */
                 if (rxSz > 0) {
-                    /* append external data, for something such as UART forwarding
-                     * note any prior data saved in the buffer was _ExternalReceiveBufferSz
+                    /* Append external data, for something such as
+                     * UART forwarding.
+                     *
+                     * Note any prior data saved in the buffer
+                     * was _ExternalReceiveBufferSz.
                      *
                      * Here we perform the thread-safe equivalent of:
                      *
-                        memcpy((byte*)&_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
-                               buf,
-                               rxSz);
+                        memcpy(
+                            &_ExternalReceiveBuffer[_ExternalReceiveBufferSz],
+                            buf,
+                            rxSz);
                         _ExternalReceiveBufferSz = rxSz;
                      */
                     Set_ExternalReceiveBuffer(this_rx_buf, rxSz);
@@ -408,7 +433,6 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                     backlogSz += rxSz;
                     txSum = 0;
                     txSz = 0;
-
 
                     while (backlogSz != txSum && txSz >= 0 && !stop) {
                         /* we typically do NOT want to re-echo TTY data
@@ -468,7 +492,9 @@ static THREAD_RETURN WOLFSSH_THREAD server_worker(void* vArgs)
                     } /* while */
 
                     if (txSum < backlogSz) {
-                        memmove(this_rx_buf, this_rx_buf + txSum, backlogSz - txSum);
+                        memmove(this_rx_buf,
+                                this_rx_buf + txSum,
+                                backlogSz - txSum);
                     }
                     backlogSz -= txSum;
                 }
@@ -636,9 +662,13 @@ static PwMap* PwMapNew(PwMapList* list,
         c32toa(pSz, flatSz);
 
         fsz = sizeof(flatSz);
+
+    #ifdef DEBUG_WOLFSSH
+        ESP_LOGI(TAG, "map->username = %s", map->username);
         ESP_LOGI(TAG, "SHA256 flatSz: 0x%02x%02x%02x%02x; size = %d",
                       flatSz[0], flatSz[1], flatSz[2], flatSz[3], fsz);
         ESP_LOGI(TAG, "SHA256 sample password: '%s': size = %d bytes", p, pSz);
+    #endif
     #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
         ESP_LOGW(TAG, "PwMapNew sha256 final ctx->lockDepth = %d",
                        (&sha.ctx)->lockDepth);
@@ -646,12 +676,17 @@ static PwMap* PwMapNew(PwMapList* list,
                        (&sha.ctx)->lockDepth);
     #endif
         wc_Sha256Update((wc_Sha256*)&sha, flatSz, fsz);
-    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
-        ESP_LOGW(TAG, "calling wc_Sha256Update(2) ctx->lockDepth = %d", (&sha.ctx)->lockDepth);
+    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH) && \
+       !defined(NO_WOLFSSL_ESP32_CRYPT_HASH_SHA256)
+        ESP_LOGW(TAG, "calling wc_Sha256Update(2) ctx->lockDepth = %d",
+                      (&sha.ctx)->lockDepth);
     #endif
         wc_Sha256Update((wc_Sha256*)&sha, p, pSz);
-    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH)
-        ESP_LOGW(TAG, "calling wc_Sha256Final ctx->lockDepth = %d", (&sha.ctx)->lockDepth);
+    #if defined(SSH_SERVER_DEBUG_LOCKDEPTH) && \
+       !defined(NO_WOLFSSL_ESP32_CRYPT_HASH_SHA256)
+
+        ESP_LOGW(TAG, "calling wc_Sha256Final ctx->lockDepth = %d",
+                      (&sha.ctx)->lockDepth);
     #endif
         wc_Sha256Final((wc_Sha256*)&sha, (byte*)map->p);
 
@@ -661,7 +696,6 @@ static PwMap* PwMapNew(PwMapList* list,
 
     return map;
 }
-
 
 static void PwMapListDelete(PwMapList* list)
 {
@@ -676,8 +710,6 @@ static void PwMapListDelete(PwMapList* list)
         }
     }
 }
-
-
 
 static int LoadPasswordBuffer(byte* buf, word32 bufSz, PwMapList* list)
 {
@@ -795,7 +827,6 @@ static int LoadPublicKeyBuffer(byte* buf, word32 bufSz, PwMapList* list)
 
     return 0;
 }
-
 
 static int wsUserAuth(byte authType,
                       WS_UserAuthData* authData,
@@ -1008,9 +1039,9 @@ void server_test(void *arg)
     *    Symbolic constants that can be used for the domain argument are
     *    defined in the <sys/socket.h> header.
     *
-    *  The type argument specifies the socket type, which determines the semantics
-    *  of communication over the socket. The following socket types are defined;
-    *  implementations may specify additional socket types:
+    *  The type argument specifies the socket type, which determines the
+    *  semantics of communication over the socket. The following socket types
+    *  are defined; implementations may specify additional socket types:
     *
     *    SOCK_STREAM    Provides sequenced, reliable, bidirectional,
     *                   connection-mode byte streams, and may provide a
@@ -1250,10 +1281,10 @@ void server_test(void *arg)
     *
     *  The backlog argument defines the maximum length to which the queue of
     *  pending connections for sockfd may grow.If a connection request arrives
-    *  when the queue is full, the client may receive an error with an indication
-    *  of ECONNREFUSED or, if the underlying protocol supports retransmission,
-    *  the request may be ignored so that a later reattempt at connection
-    *  succeeds.
+    *  when the queue is full, the client may receive an error with an
+    *  indication of ECONNREFUSED or, if the underlying protocol supports
+    *  retransmission, the request may be ignored so that a later reattempt
+    *  at connection succeeds.
     *
     *   Return Value
     *     On success, zero is returned.
@@ -1354,12 +1385,12 @@ void server_test(void *arg)
         socklen_t     clientAddrSz = sizeof(clientAddr);
 #ifndef SINGLE_THREADED
         THREAD_TYPE   thread;
-        ESP_LOGI(TAG,"Found SINGLE_THREADED defined");
+        ESP_LOGI(TAG,"Did not find SINGLE_THREADED defined");
 #endif
         WOLFSSH*      ssh;
 
-        /* we'll create a new instance of threadCtx since it will be handed off to
-         * potentially multiple separate threads
+        /* We'll create a new instance of threadCtx since it will be
+         * handed off to potentially multiple separate threads.
          */
         thread_ctx_t* threadCtx;
 
@@ -1377,7 +1408,7 @@ void server_test(void *arg)
 
         ssh = wolfSSH_new(ctx);
         if (ssh == NULL) {
-            ESP_LOGE(TAG,"Couldn't allocate SSH data.\n");
+            ESP_LOGE(TAG,"Failed to create ssh object during wolfSSH_new.\n");
             exit(EXIT_FAILURE);
         }
         wolfSSH_SetUserAuthCtx(ssh, &pwMapList);
@@ -1455,7 +1486,3 @@ void server_test(void *arg)
 
     return;
 }
-
-
-
-

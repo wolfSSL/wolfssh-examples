@@ -21,7 +21,9 @@
 #ifndef _MY_CONFIG_H_
 #define _MY_CONFIG_H_
 
-#define  USE_MY_PRIVATE_CONFIG
+/* optionally use local private config */
+/* #define  USE_MY_PRIVATE_CONFIG      */
+#define NO_PRIVATE_CONFIG
 
 /*
  * we code .gitignore to also exclude my_private_config.h with wifi
@@ -92,7 +94,9 @@ endif()
 #if defined(NO_PRIVATE_CONFIG)
     /* reminder that if you put a password here,
      * it might get checked into GitHub!         */
+    #undef  EXAMPLE_ESP_WIFI_SSID
     #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
+    #undef  EXAMPLE_ESP_WIFI_PASS
     #define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
 
 #elif defined(SYSPROGS_MY_PRIVATE_CONFIG)

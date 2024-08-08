@@ -96,6 +96,15 @@
 
     #define TXD_PIN (GPIO_Pin_15)
     #define RXD_PIN (GPIO_Pin_13) /* TODO assign valid GPIO */
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+    #ifndef GPIO_NUM_1
+        #define GPIO_NUM_1 1
+    #endif
+    #ifndef GPIO_NUM_3
+        #define GPIO_NUM_3 3
+    #endif
+    #define RXD_PIN (GPIO_NUM_1)
+    #define TXD_PIN (GPIO_NUM_3)
 #else
     #ifndef GPIO_NUM_17
         #define GPIO_NUM_17 17
@@ -107,6 +116,8 @@
     #define TXD_PIN (GPIO_NUM_17)
 #endif
 
+/* Optionally disable the entire UART component: */
+/* #define DISABLE_SSH_UART */ 
 
 #define SSH_SERVER_BANNER "wolfSSH Example Server\n"
 

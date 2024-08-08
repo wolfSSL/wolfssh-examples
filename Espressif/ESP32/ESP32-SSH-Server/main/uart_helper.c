@@ -54,7 +54,8 @@ static SemaphoreHandle_t xUART_Semaphore = NULL;
 static const char* TAG = "uart_helper";
 
 /*
- * startupMessage is the message before actually connecting to UART in server task thread.
+ * startupMessage is the message before actually connecting to UART in
+ * server task thread.
  */
 static char startupMessage[] =
       "\n"
@@ -86,9 +87,11 @@ void init_UART(void)
         intr_alloc_flags = ESP_INTR_FLAG_IRAM;
     #endif
     /* We won't use a buffer for sending UART_NUM_1 data. */
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2048, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 2048, 0, 0,
+                                        NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN,
+                                 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 #endif /* CONFIG_IDF_TARGET_ESP8266 */
     ESP_LOGI(TAG, "End init_UART.");
 }
@@ -135,7 +138,8 @@ void uart_tx_task(void *arg) {
         {
             ESP_LOGI(TAG,"UART Send Data");
 
-            /* we don't want to send 0x7f as a backspace, we want a real backspace
+            /* We don't want to send 0x7f as a backspace,
+             * we want a real backspace.
              * TODO: optional character mapping */
             if (ExternalReceiveBuffer_IsChar(0x7f)) {
                 sendData(TX_TASK_TAG, backspace);
@@ -145,11 +149,12 @@ void uart_tx_task(void *arg) {
                 sendData(TX_TASK_TAG, (char*)ExternalReceiveBuffer());
             }
 
-            /* once we sent data, reset the pointer to zero to indicate empty queue */
+            /* Once we sent data, reset the pointer to zero to
+             * indicate empty queue. */
             Set_ExternalReceiveBufferSz(0);
         }
 
-        /* yield. let's not be greedy */
+        /* Yield. Let's not be greedy. */
         taskYIELD();
     }
 }
@@ -166,7 +171,8 @@ void InitSemaphore()
 
 #ifdef configUSE_RECURSIVE_MUTEXES
     /* this may be interesting; see semphr.h */
-    ESP_LOGI(TAG,"InitSemaphore found UART configUSE_RECURSIVE_MUTEXES enabled");
+    ESP_LOGI(TAG,"InitSemaphore found UART "
+                 "configUSE_RECURSIVE_MUTEXES enabled");
 #endif
 }
 
@@ -175,8 +181,6 @@ void InitSemaphore()
  * buffer to SEND (typically out to the SSH client)
  */
 void uart_rx_task(void *arg) {
-    vTaskDelay(1000000000); /* TODO */
-
     InitSemaphore();
 
     /* TODO do we really want malloc? probably not.
@@ -190,6 +194,7 @@ void uart_rx_task(void *arg) {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
 
+    ESP_LOGW(TAG, "-- Start RX_TASK");
 
     /* TODO this should be interrupt driven, rather than polling */
     while (1) {
