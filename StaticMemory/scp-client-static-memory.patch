@@ -1,0 +1,109 @@
+diff --git a/examples/scpclient/scpclient.c b/examples/scpclient/scpclient.c
+index 980b74a..fa71204 100644
+--- a/examples/scpclient/scpclient.c
++++ b/examples/scpclient/scpclient.c
+@@ -86,6 +86,35 @@ static void ShowUsage(void)
+ }
+ 
+ 
++WOLFSSL_HEAP_HINT *wolfSSH_heap = NULL;
++byte memory[250000];
++
++void* myMalloc(int size, void* heap, int type, const char* func, int line)
++{
++    void* ret = NULL;
++    ret = XMALLOC(size, wolfSSH_heap, type);
++    fprintf(stderr, "wolfSSH_ALLOC %p -> %d bytes from %s line %d\n",
++        ret, size, func, line);
++    if (ret == NULL) {
++        fprintf(stderr, "Failed to malloc for size %d\n", size);
++    }
++    return ret;
++}
++
++void myFree(void* ptr, void* heap, int type, const char* func, int line)
++{
++    fprintf(stderr, "wolfSSH_FREE %p from %s line %d\n",
++        ptr, func, line);
++    XFREE(ptr, wolfSSH_heap, type);
++}
++
++void* myRealloc(void* ptr, int size, void* heap, int type)
++{
++    fprintf(stderr, "wolfSSH REALLOC[%p]: %d bytes\n",
++        ptr, size);
++    return XREALLOC(ptr, size, wolfSSH_heap, type);
++}
++
+ enum copyDir {copyNone, copyToSrv, copyFromSrv};
+ 
+ 
+@@ -237,7 +266,7 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
+         err_sys("Error setting public key");
+     }
+ 
+-    ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_CLIENT, NULL);
++    ctx = wolfSSH_CTX_new(WOLFSSH_ENDPOINT_CLIENT, wolfSSH_heap);
+     if (ctx == NULL)
+         err_sys("Couldn't create wolfSSH client context.");
+ 
+@@ -309,8 +338,10 @@ THREAD_RETURN WOLFSSH_THREAD scp_client(void* args)
+         }
+     } while (ret == WS_WANT_READ || ret == WS_WANT_WRITE ||
+                     ret == WS_CHAN_RXD || ret == WS_REKEYING);
+-    if (ret != WS_SUCCESS)
++    if (ret != WS_SUCCESS) {
++        fprintf(stderr, "Error %d\n", ret);
+         err_sys("Couldn't copy the file.");
++    }
+ 
+     ret = wolfSSH_shutdown(ssh);
+     /* do not continue on with shutdown process if peer already disconnected */
+@@ -353,6 +384,13 @@ int main(int argc, char* argv[])
+     args.return_code = 0;
+     args.user_auth = NULL;
+ 
++    /* First load up static memory */
++    if (wc_LoadStaticMemory(&wolfSSH_heap, memory, sizeof(memory),
++            WOLFMEM_GENERAL, 1) != 0) {
++        fprintf(stderr, "unable to load static memory");
++        return 1;
++    }
++
+     #ifdef DEBUG_WOLFSSH
+         wolfSSH_Debugging_ON();
+     #endif
+diff --git a/src/internal.c b/src/internal.c
+index 6444596..52fe4ee 100644
+--- a/src/internal.c
++++ b/src/internal.c
+@@ -993,7 +993,8 @@ WOLFSSH* SshInit(WOLFSSH* ssh, WOLFSSH_CTX* ctx)
+     handshake = HandshakeInfoNew(heap);
+     rng = (WC_RNG*)WMALLOC(sizeof(WC_RNG), heap, DYNTYPE_RNG);
+ 
+-    if (handshake == NULL || rng == NULL || wc_InitRng(rng) != 0) {
++    if (handshake == NULL || rng == NULL ||
++            wc_InitRng_ex(rng, heap, INVALID_DEVID) != 0) {
+ 
+         WLOG(WS_LOG_DEBUG, "SshInit: Cannot allocate memory.\n");
+         WFREE(handshake, heap, DYNTYPE_HS);
+diff --git a/wolfssh/settings.h b/wolfssh/settings.h
+index 12e7527..5eb5998 100644
+--- a/wolfssh/settings.h
++++ b/wolfssh/settings.h
+@@ -47,6 +47,15 @@ extern "C" {
+ #endif
+ 
+ 
++/* these could be added to user_settings.h if building with
++ * WOLFSSL_USER_SETTINGS */
++#define WMALLOC(s, h, t)      myMalloc((s), (h), (t), __func__, __LINE__)
++#define WFREE(p, h, t)        myFree((p), (h), (t), __func__, __LINE__)
++#define WREALLOC(p, n, h, t)  myRealloc((p), (n), (h), (t))
++void* myMalloc(int size, void* heap, int type, const char* func, int line);
++void myFree(void* ptr, void* heap, int type, const char* func, int line);
++void* myRealloc(void* ptr, int size, void* heap, int type);
++
+ /* user settings here */
+ #ifndef WMALLOC_USER
+     #define USE_WOLFSSH_MEMORY  /* default memory handlers */
