@@ -19,6 +19,7 @@
 
 #include "myFilesystem.h"
 #include <wolfssh/ssh.h>
+#include <wolfssh/wolfsftp.h>
 #include <wolfssh/log.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -212,4 +213,107 @@ int wPread(WFD fd, unsigned char* buf, unsigned int sz,
     return ret;
 }
 
+
+/*******************************************************************************
+ File attribute functions
+*******************************************************************************/
+
+typedef struct WS_HANDLE_LIST {
+    byte handle[WOLFSSH_MAX_HANDLE];
+    word32 handleSz;
+    char name[WOLFSSH_MAX_FILENAME];
+    struct WS_HANDLE_LIST* next;
+    struct WS_HANDLE_LIST* prev;
+} WS_HANDLE_LIST;
+
+int SFTP_GetAttributesStat(void* atrIn, void* statsIn)
+{
+    WS_SFTP_FILEATRB* atr = (WS_SFTP_FILEATRB*)atrIn;
+    WSTAT_T* stats = (WSTAT_T*)statsIn;
+    /* file size */
+    atr->flags |= WOLFSSH_FILEATRB_SIZE;
+    atr->sz[0] = (word32)stats->fsize;
+    atr->sz[1] = (word32)(0);
+
+    /* file permissions */
+    atr->flags |= WOLFSSH_FILEATRB_PERM;
+    if ((stats->fattrib & SYS_FS_ATTR_DIR) & SYS_FS_ATTR_MASK) {
+        atr->per |= 0x41ED; /* 755 with directory */
+    }
+    else {
+        atr->per |= 0x8000;
+    }
+
+    /* check for read only */
+    if ((stats->fattrib & SYS_FS_ATTR_RDO) & SYS_FS_ATTR_MASK) {
+        atr->per |= 0x124; /* octal 444 */
+    }
+    else {
+        atr->per |= 0x1ED; /* octal 755 */
+    }
+
+    /* last modified time */
+    atr->mtime = stats->ftime;
+
+    return WS_SUCCESS;
+}
+
+
+static int SFTP_GetAttributesHelper(WS_SFTP_FILEATRB* atr, const char* fName)
+{
+    WSTAT_T stats;
+    SYS_FS_RESULT res;
+    char buffer[255];
+
+    WMEMSET(atr, 0, sizeof(WS_SFTP_FILEATRB));
+    WMEMSET(buffer, 0, sizeof(buffer));
+    res = SYS_FS_CurrentDriveGet(buffer);
+    if (res == SYS_FS_RES_SUCCESS) {
+        if (WSTRCMP(fName, buffer) == 0) {
+            atr->flags |= WOLFSSH_FILEATRB_PERM;
+            atr->per |= 0x41ED; /* 755 with directory */
+            atr->per |= 0x1ED;  /* octal 755 */
+
+            atr->flags |= WOLFSSH_FILEATRB_SIZE;
+            atr->sz[0] = 0;
+            atr->sz[1] = 0;
+
+            atr->mtime = 30912;
+            WLOG(WS_LOG_SFTP, "Setting mount point as directory");
+            return WS_SUCCESS;
+        }
+    }
+
+    if (WSTAT(ssh->fs, fName, &stats) != 0) {
+        WLOG(WS_LOG_SFTP, "Issue with WSTAT call");
+        return WS_BAD_FILE_E;
+    }
+    return SFTP_GetAttributesStat(atr, &stats);
+}
+
+
+/* NOTE: if atr->flags is set to a value of 0 then no attributes are set.
+ * Fills out a WS_SFTP_FILEATRB structure
+ * returns WS_SUCCESS on success
+ */
+int SFTP_GetAttributes(void* fs, const char* fileName, void* atr,
+        byte noFollow, void* heap)
+{
+    WOLFSSH_UNUSED(heap);
+    WOLFSSH_UNUSED(fs);
+
+    return SFTP_GetAttributesHelper((WS_SFTP_FILEATRB*)atr, fileName);
+}
+
+
+/* Gets attributes based on file descriptor
+ * NOTE: if atr->flags is set to a value of 0 then no attributes are set.
+ * Fills out a WS_SFTP_FILEATRB structure
+ * returns WS_SUCCESS on success
+ */
+int SFTP_GetAttributes_Handle(void* ssh, unsigned char* handle, int handleSz,
+        char* name, void* atr)
+{
+    return SFTP_GetAttributesHelper((WS_SFTP_FILEATRB*)atr, name);
+}
 #endif /* WOLFSSH_USER_FILESYSTEM */

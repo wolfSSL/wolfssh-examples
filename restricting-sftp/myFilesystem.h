@@ -128,6 +128,13 @@ int wFread(void *fs, unsigned char* b, int s, int a, WFILE* f);
 #define WFCHMOD(fs,fd,m)     (0)
 
 
+/*******************************************************************************
+ File attribute functions
+*******************************************************************************/
+int SFTP_GetAttributesStat(void* atr, void* stats);
+int SFTP_GetAttributes_Handle(void* ssh, unsigned char* handle, int handleSz,
+                char* name, void* atr);
+
 #ifdef __cplusplus
 }
 #endif
