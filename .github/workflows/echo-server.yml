@@ -1,0 +1,97 @@
+name: echo-server
+
+on:
+  push:
+    branches: [ 'main' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev iproute2 ethtool tcpdump sshpass
+
+      - name: Setup network and detect pcap index
+        id: pcap
+        run: |
+          # Clean up any stale veth pair
+          sudo ip link del veth0 2>/dev/null || true
+
+          # Create the veth pair
+          sudo ip link add veth0 type veth peer name veth1
+          sudo ip link set veth0 up
+          sudo ip link set veth1 up
+          sudo ip addr add 10.0.0.1/24 dev veth0
+          sudo ethtool -K veth0 tx off
+
+          # Find veth1's pcap index (1-based, as reported by tcpdump)
+          INDEX=$(tcpdump --list-interfaces 2>/dev/null | grep -m1 'veth1' | cut -d. -f1)
+          echo "veth1 is pcap interface $INDEX"
+          echo "index=$INDEX" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        working-directory: echo-server
+        run: make EXTRA_CPPFLAGS=-DipconfigNETWORK_INTERFACE_TO_USE=${{ steps.pcap.outputs.index }}
+
+      - name: Build debug
+        working-directory: echo-server
+        run: make clean && make BUILD=debug EXTRA_CPPFLAGS=-DipconfigNETWORK_INTERFACE_TO_USE=${{ steps.pcap.outputs.index }}
+
+      - name: Functional test
+        working-directory: echo-server
+        run: |
+          set +e
+
+          # Start the server in the background with a 60s timeout
+          sudo timeout 60s ./echo-server > /tmp/echo-server.log 2>&1 &
+          SERVER_PID=$!
+
+          # Wait for the server to be ready
+          READY=0
+          for i in $(seq 1 30); do
+            if grep -q "Listening on port 22222" /tmp/echo-server.log 2>/dev/null; then
+              echo "Server is listening"
+              READY=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$READY" -ne 1 ]; then
+            echo "FAIL: server did not start in time"
+            cat /tmp/echo-server.log
+            sudo kill $SERVER_PID 2>/dev/null || true
+            sudo ip link del veth0 2>/dev/null || true
+            exit 1
+          fi
+
+          # Connect and authenticate via SSH. The wolfSSH echo server
+          # does not provide a shell, so the client will disconnect after
+          # the channel opens.  We just need to verify the SSH handshake
+          # and authentication succeed.
+          sshpass -p upthehill ssh -T -p 22222 \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=10 \
+            jill@10.0.0.2 < /dev/null 2>/dev/null
+          # ssh exit code is not reliable here since the server
+          # closes the channel — check the server log instead
+          sleep 1
+
+          # Cleanup
+          sudo kill $SERVER_PID 2>/dev/null || true
+          sudo ip link del veth0 2>/dev/null || true
+
+          # Verify the server accepted the SSH connection
+          if grep -q "SSH connection accepted" /tmp/echo-server.log; then
+            echo "PASS: server started, client authenticated, SSH session established"
+          else
+            echo "FAIL: SSH connection was not accepted"
+            cat /tmp/echo-server.log
+            exit 1
+          fi

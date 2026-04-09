@@ -23,6 +23,13 @@ The following examples are available for Espressif devices:
 * [ESP32-SSH-Server](./Espressif/ESP8266/ESP8266-SSH-Server/README.md)
 SSH-to-UART.
 
+## echo-server
+
+A minimal SSH echo server running on FreeRTOS with FreeRTOS-Plus-TCP networking.
+Targets PIC32MZ with Microchip Harmony but runnable on Linux using the FreeRTOS
+POSIX simulator and a libpcap-based network interface. Uses a Makefile and has a
+preconfigured user_settings.h file.
+
 ## make-testsuite
 
 This example isn't manufacturer specific, but it has only been tested on

@@ -2,15 +2,15 @@ MKDIR ?= mkdir
 
 OBJ = obj
 
-WOLFSSH ?= wolfssh
+WOLFSSH ?= ../wolfssh
 SSHDIR = $(WOLFSSH)/src
 SSHINC = $(WOLFSSH)
-OBJSSH = $(OBJ)/$(WOLFSSH)
+OBJSSH = $(OBJ)/wolfssh
 
-WOLFSSL ?= wolfssl
+WOLFSSL ?= ../wolfssl
 CRYPTDIR = $(WOLFSSL)/wolfcrypt/src
 CRYPTINC = $(WOLFSSL)
-OBJCRYPT = $(OBJ)/$(WOLFSSL)
+OBJCRYPT = $(OBJ)/wolfssl
 
 CPPFLAGS ?= -I. -I$(SSHINC) -I$(CRYPTINC) -DWOLFSSL_USER_SETTINGS
 ifeq ($(BUILD),debug)
